@@ -1,0 +1,15 @@
+TEXT RECOGNITION
+PURPOSE OF PROJECT: EXTRACT TEXT FROM TABLES IN IMAGES AND STORE RESULT IN CSV FILE (Optional visualization of results)
+
+Files in main / final pipeline:
+utils/preprocessing.py
+
+src/try_blobs.py (from cells to blobs)
+
+src/try_blobs.py (from blobs to words)
+
+src/seg_cells.py (from words to characters)(on this stage characters are size 32 X 32 pixels )
+
+src/find_size.py (to remove white characters , iamges where no characters)
+
+src/test_character_classifier.py

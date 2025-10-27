@@ -1,0 +1,809 @@
+in preprocess function:
+    scales = [0.25, 0.5, 0.75, 0.95] # try 0.25, 0.5, 0.75
+
+for scale in scales:
+        small = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        up = cv2.resize(small, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_CUBIC)
+        cv2.imwrite(f"steps_out/{scale}_up.jpg", up)
+
+------------------------
+Messy version of preprocess function-
+--------------------------
+
+def preprocess(img):
+    
+    # Current logic 
+    
+    filename_1 = "grayscale_image.png"
+    filename_2 = "thresholded_image.png"
+    filename_3 = "denoised_image.png"
+    
+    gray = mask_pixels(img, "mask_1.png")
+
+
+    gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
+    path_1 = os.path.join(DEVELOPMENT_DIR, filename_1)
+    path_2 = os.path.join(DEVELOPMENT_DIR, filename_2)
+    path_3 = os.path.join(DEVELOPMENT_DIR, filename_3)
+    
+
+    
+    # better contrast
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(12,12))
+    gray = clahe.apply(gray)
+    
+    gray_2 = mask_pixels(img, "mask_2.png")
+    
+
+    
+    # remove light gray pixels
+    # gray_2 = mask_pixels(gray, "mask_1.png")
+    
+
+    # ksizes = [ 3, 5, 7, 9, 11]
+    # for ksize in ksizes:
+    #     blur = cv2.GaussianBlur(gray, (ksize,ksize), 0)
+    #     th = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+    #                                cv2.THRESH_BINARY_INV, ksize, 2)
+    #     cv2.imwrite(f"steps_out/th_{ksize}.png", th )
+    # blur = cv2.GaussianBlur(gray, (7,7), 0)
+    
+    
+    
+    # if len(blur.shape) == 3:
+    #     blur = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+
+    # if blur.dtype != np.uint8:
+    #     blur = (blur * 255).astype(np.uint8)
+
+    
+    # 3. Bilateral filter — smooth lighting, retain edges
+    den = cv2.bilateralFilter(gray, d=9, sigmaColor=75, sigmaSpace=75)
+
+    den_2 = cv2.bilateralFilter(gray, d=9, sigmaColor=30, sigmaSpace=30)
+    
+    
+    # Ensure single-channel uint8 before thresholding
+    if len(den_2.shape) == 3:
+        den_2 = cv2.cvtColor(den_2, cv2.COLOR_BGR2GRAY)
+
+    if den_2.dtype != np.uint8:
+        den_2 = (den_2 * 255).astype(np.uint8)
+    # cv2.imwrite(path_2, den)
+    
+    # mask_pixels(den, "mask.png")
+
+    # 4. Median blur — remove specks/pixel noise
+    # den = cv2.medianBlur(den, 5
+
+
+    # assume here that we are looking for white borders as letters , not text background
+    # # adaptive threshold - хорош для разного освещения
+    th = cv2.adaptiveThreshold(den_2, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                               cv2.THRESH_BINARY_INV, 11, 2)
+    # th_2 = cv2.adaptiveThreshold(den, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+    #                            cv2.THRESH_BINARY, 11, 2)
+    cv2.imwrite(path_1, gray)
+    cv2.imwrite(path_2, th)
+    cv2.imwrite(path_3, den_2)
+
+
+
+
+    return gray, th
+
+
+
+def transform_and_crop_table(image, points):
+    """
+    Transform perspective and crop table from image.
+    
+    Args:
+        image: input image (BGR or grayscale)
+        points: np.float32 array of shape (4, 2) with corners in order:
+                [top-left, top-right, bottom-right, bottom-left]
+    
+    Returns:
+        cropped and perspective-corrected image
+    """
+    # Unpack points
+    tl, tr, br, bl = points
+    
+    # Calculate width and height of the table
+    # Width: max of top and bottom edges
+    width_top = np.linalg.norm(tr - tl)
+    width_bottom = np.linalg.norm(br - bl)
+    max_width = max(int(width_top), int(width_bottom))
+    
+    # Height: max of left and right edges
+    height_left = np.linalg.norm(bl - tl)
+    height_right = np.linalg.norm(br - tr)
+    max_height = max(int(height_left), int(height_right))
+    
+    # Destination points for perspective transform
+    # This will create a perfectly rectangular table
+    dst_points = np.array([
+        [0, 0],                          # top-left
+        [max_width - 1, 0],              # top-right
+        [max_width - 1, max_height - 1], # bottom-right
+        [0, max_height - 1]              # bottom-left
+    ], dtype=np.float32)
+    
+    # Calculate perspective transform matrix
+    M = cv2.getPerspectiveTransform(points, dst_points)
+    
+    # Apply perspective warp
+    warped = cv2.warpPerspective(image, M, (max_width, max_height))
+    
+    # Auto-rotate if the table is wider than tall but should be portrait
+    # (or vice versa) - rotate to make it landscape-oriented by default
+    # If you want portrait orientation, you can adjust this logic
+    if max_height > max_width:
+        # Table is portrait, rotate 90° clockwise to make it landscape
+        warped = cv2.rotate(warped, cv2.ROTATE_90_CLOCKWISE)
+    
+    return warped
+
+
+----------------
+Previous find_table_contour
+-----------------
+# def find_table_contour(thresh):
+#     """
+#     Find a 4-point table contour.
+#     - First try contour-based detection (largest 4-point polygon).
+#     - Fallback: extract horizontal and vertical masks via morphology and look for a big rect.
+#     - Final fallback: row/column projection to infer top/left/right/bottom borders.
+#     Returns points as np.float32 shape (4,2) in order TL,TR,BR,BL or None.
+#     """
+#     # Ensure single-channel uint8
+#     if len(thresh.shape) == 3:
+#         t = cv2.cvtColor(thresh, cv2.COLOR_BGR2GRAY)
+#     else:
+#         t = thresh.copy()
+#     if t.dtype != np.uint8:
+#         # assume float in 0..1
+#         t = (t * 255).astype(np.uint8)
+
+#     # Normalize so that line pixels are white (255) and background is black (0)
+#     # If mean is high, likely lines are white already; otherwise invert.
+#     if np.mean(t) < 127:
+#         # lines likely dark -> invert so lines become white for morphological ops
+#         t_bin = cv2.bitwise_not(t)
+#     else:
+#         t_bin = t.copy()
+
+#     # Ensure binary (just in case)
+#     _, t_bin = cv2.threshold(t_bin, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+#     # ---- 1) Regular contour-based approach (the one you already use) ----
+#     contours, _ = cv2.findContours(t_bin.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#     if contours:
+#         contours = sorted(contours, key=cv2.contourArea, reverse=True)
+#         for c in contours:
+#             peri = cv2.arcLength(c, True)
+#             approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+#             if len(approx) == 4 and cv2.contourArea(approx) > 1000:
+#                 return approx.reshape(4, 2).astype(np.float32)
+
+#     # ---- 2) Morphological line extraction fallback ----
+#     H, W = t_bin.shape
+#     # heuristic kernel sizes (adjustable)
+#     horiz_len = max(10, W // 15)
+#     vert_len = max(10, H // 15)
+
+#     horiz_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (horiz_len, 1))
+#     vert_kernel  = cv2.getStructuringElement(cv2.MORPH_RECT, (1, vert_len))
+
+#     # Extract horizontal lines
+#     horiz = cv2.erode(t_bin, horiz_kernel, iterations=1)
+#     horiz = cv2.dilate(horiz, horiz_kernel, iterations=2)
+
+#     # Extract vertical lines
+#     vert = cv2.erode(t_bin, vert_kernel, iterations=1)
+#     vert = cv2.dilate(vert, vert_kernel, iterations=2)
+
+#     # Combine and try to find large rectangle contour
+#     grid = cv2.bitwise_or(horiz, vert)
+#     contours, _ = cv2.findContours(grid.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#     if contours:
+#         contours = sorted(contours, key=cv2.contourArea, reverse=True)
+#         for c in contours:
+#             peri = cv2.arcLength(c, True)
+#             approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+#             if len(approx) == 4 and cv2.contourArea(approx) > 1000:
+#                 return approx.reshape(4, 2).astype(np.float32)
+#         # If no 4-pt polygon, take bounding rect of largest contour of grid
+#         largest = contours[0]
+#         x, y, w, h = cv2.boundingRect(largest)
+#         pts = np.array([[x, y], [x + w, y], [x + w, y + h], [x, y + h]], dtype=np.float32)
+#         return pts
+
+#     # ---- 3) Projection fallback: find rows/cols with many "line" pixels ----
+#     # Use the horizontal mask (horiz) to compute row sums and vertical mask for col sums.
+#     row_sum = np.sum(horiz == 255, axis=1)  # counts per row
+#     col_sum = np.sum(vert == 255, axis=0)   # counts per col
+
+#     # thresholds as fraction of max
+#     row_thresh = 0.3 * np.max(row_sum) if np.max(row_sum) > 0 else 0
+#     col_thresh = 0.3 * np.max(col_sum) if np.max(col_sum) > 0 else 0
+
+#     # find contiguous runs above threshold
+#     def find_span(arr, thr, min_run=10):
+#         above = np.where(arr > thr)[0]
+#         if above.size == 0:
+#             return None
+#         # group contiguous indices
+#         groups = np.split(above, np.where(np.diff(above) != 1)[0] + 1)
+#         # select the longest group
+#         groups = sorted(groups, key=lambda g: g.size, reverse=True)
+#         for g in groups:
+#             if g.size >= min_run:
+#                 return int(g[0]), int(g[-1])
+#         # fallback: return full min/max
+#         return int(above[0]), int(above[-1])
+
+#     row_span = find_span(row_sum, row_thresh, min_run=max(5, H//80))
+#     col_span = find_span(col_sum, col_thresh, min_run=max(5, W//80))
+
+#     if row_span is not None and col_span is not None:
+#         top, bottom = row_span
+#         left, right = col_span
+#         pts = np.array([[left, top], [right, top], [right, bottom], [left, bottom]], dtype=np.float32)
+#         return pts
+#     # print("No table found.")
+#     # nothing found
+#     return None
+
+# def find_table_contour(thresh):
+#     # ищем крупный контур (таблицу)
+#     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#     if not contours:
+#         return None
+#     contours = sorted(contours, key=cv2.contourArea, reverse=True)
+#     for c in contours:
+#         peri = cv2.arcLength(c, True)
+#         approx = cv2.approxPolyDP(c, 0.02*peri, True)
+#         if len(approx) == 4:
+#             return approx.reshape(4,2)
+#     return None
+
+
+
+/-----------
+Group and visualize nodes 
+-----------/
+def group_and_visualize_nodes(
+        centroids: List[Tuple[float, float]],
+        original_img: np.ndarray,
+        horiz_mask: Optional[np.ndarray] = None,
+        vert_mask: Optional[np.ndarray] = None,
+        row_tol: Optional[int] = None,
+        trim_to_min_cols: bool = True,
+        snap_to_columns: bool = False,
+        min_line_score: int = 3,
+        out_path: str = "steps_out/nodes_visual.png"
+    ) -> Tuple[List[List[Tuple[float, float]]], str, Dict]:
+    """
+    Cluster centroids into rows, optionally snap/trim columns, and visualize nodes.
+    Only draw a horizontal connection between adjacent nodes if horiz_mask supports it,
+    and only draw a vertical connection between nodes in the same column if vert_mask supports it.
+
+    Returns rows_of_points (list of rows), saved image path, diagnostics dict.
+    """
+    if len(centroids) == 0:
+        raise ValueError("No centroids provided.")
+
+    H = original_img.shape[0]
+    if row_tol is None:
+        row_tol = max(8, H // 150)
+        
+
+    diagnostics = {
+        "row_tol": int(row_tol),
+        "input_centroids_count": len(centroids),
+        "mask_provided": bool(horiz_mask is not None and vert_mask is not None)
+    }
+
+    # sort by y then x
+    points = sorted(centroids, key=lambda p: (p[1], p[0]))
+    
+    print("Len of points: ", len(points))
+
+    # group into rows
+    rows = []
+    curr = [points[0]]
+    for (x,y) in points[1:]:
+        if abs(y - curr[-1][1]) <= row_tol:
+            curr.append((x,y))
+        else:
+            rows.append(curr)
+            curr = [(x,y)]
+    rows.append(curr)
+    print("Len of rows: ", len(rows))
+
+    # sort each row by x
+    rows_of_points = [sorted(r, key=lambda p: p[0]) for r in rows]
+
+    # diagnostic: row lengths
+    row_lengths = [len(r) for r in rows_of_points]
+    diagnostics['rows_detected'] = len(rows_of_points)
+    diagnostics['row_lengths'] = row_lengths
+
+    # If trimming requested, trim to minimum columns
+    if trim_to_min_cols and len(rows_of_points) > 0:
+        min_len = min(len(r) for r in rows_of_points)
+        rows_of_points = [r[:min_len] for r in rows_of_points]
+        diagnostics['trimmed_to_cols'] = min_len
+
+    # Optionally snap x positions to column medians to reduce jitter
+    if snap_to_columns and len(rows_of_points) > 0:
+        ncols = len(rows_of_points[0])
+        # compute column medians
+        col_medians = []
+        for c in range(ncols):
+            xs = [row[c][0] for row in rows_of_points if len(row) > c]
+            col_medians.append(float(np.median(xs)))
+        # snap each node x to nearest column median (keep y)
+        snapped = []
+        for r in rows_of_points:
+            row_snapped = []
+            for c_idx, (x,y) in enumerate(r):
+                if c_idx < len(col_medians):
+                    row_snapped.append((float(col_medians[c_idx]), float(y)))
+                else:
+                    row_snapped.append((x,y))
+            snapped.append(row_snapped)
+        rows_of_points = snapped
+        diagnostics['snap_to_columns'] = True
+        diagnostics['col_medians'] = col_medians
+
+    # Visualization setup
+    if len(original_img.shape) == 2:
+        overlay = cv2.cvtColor(original_img, cv2.COLOR_GRAY2BGR)
+    else:
+        overlay = original_img.copy()
+    overlay_draw = overlay.copy()
+
+    palette = [
+        (0, 0, 255),(0, 255, 0),(255, 0, 0),(0, 255, 255),
+        (255, 0, 255),(255, 255, 0),(128, 0, 255),(0, 128, 255),
+    ]
+
+    # draw nodes and labels
+    for r_idx, row in enumerate(rows_of_points):
+        color = palette[r_idx % len(palette)]
+        for c_idx, (x,y) in enumerate(row):
+            xi, yi = int(round(x)), int(round(y))
+            cv2.circle(overlay_draw, (xi, yi), radius=6, color=color, thickness=-1)
+            cv2.circle(overlay_draw, (xi, yi), radius=8, color=(255,255,255), thickness=1)
+            cv2.putText(overlay_draw, f"{r_idx},{c_idx}", (xi+6, yi-6),
+                        fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.4,
+                        color=(255,255,255), thickness=1, lineType=cv2.LINE_AA)
+
+    # draw horizontal connections only if mask supports them
+    for r_idx, row in enumerate(rows_of_points):
+        # connect consecutive nodes left->right
+        for i in range(len(row)-1):
+            p1 = row[i]; p2 = row[i+1]
+            draw = True
+            if horiz_mask is not None:
+                score, samples = _sample_mask_score(horiz_mask, p1, p2)
+                # if very short segment, we give more leniency
+                threshold = min_line_score
+                if score < threshold:
+                    draw = False
+            if draw:
+                pts = np.array([[int(round(p1[0])), int(round(p1[1]))],
+                                [int(round(p2[0])), int(round(p2[1]))]], dtype=np.int32)
+                cv2.polylines(overlay_draw, [pts], isClosed=False, color=(200,200,200), thickness=1, lineType=cv2.LINE_AA)
+
+    # draw vertical connections only if mask supports them
+    if len(rows_of_points) >= 2:
+        ncols = len(rows_of_points[0])
+        for c in range(ncols):
+            col_pts = []
+            # build column sequence using only rows that have this column index
+            for r in range(len(rows_of_points)):
+                if c < len(rows_of_points[r]):
+                    col_pts.append(rows_of_points[r][c])
+            # connect adjacent pairs in this column if mask supports
+            for i in range(len(col_pts)-1):
+                p1 = col_pts[i]; p2 = col_pts[i+1]
+                draw = True
+                if vert_mask is not None:
+                    score, samples = _sample_mask_score(vert_mask, p1, p2)
+                    if score < min_line_score:
+                        draw = False
+                if draw:
+                    pts = np.array([[int(round(p1[0])), int(round(p1[1]))],
+                                    [int(round(p2[0])), int(round(p2[1]))]], dtype=np.int32)
+                    cv2.polylines(overlay_draw, [pts], isClosed=False, color=(180,180,180), thickness=1, lineType=cv2.LINE_AA)
+
+    # Save visualization and return
+    cv2.imwrite(out_path, overlay_draw)
+    return rows_of_points, out_path, diagnostics
+
+
+
+-------------
+extract_table_cells_with_merge_detection
+--------------
+import os
+import cv2
+import numpy as np
+
+def extract_table_cells_with_merge_detection(working_img, centroids_np, rows_pts, 
+                                              output_dir="cells_out", padding=2):
+    """
+    Extract cells from a table, detecting and handling merged cells that span multiple rows/columns.
+    
+    Parameters:
+    - working_img: The table image
+    - centroids_np: Array of all intersection points
+    - rows_pts: Grouped centroids organized by rows
+    - output_dir: Directory to save cell images
+    - padding: Pixels to add inside cell boundaries to avoid lines
+    
+    Returns:
+    - cells_list: List of dicts with cell info including position, span, and image
+    - grid_map: 2D array showing which cells occupy which grid positions
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Convert to grayscale for line detection
+    if len(working_img.shape) == 3:
+        gray = cv2.cvtColor(working_img, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = working_img.copy()
+    
+    # Group centroids into columns
+    cols_pts = group_centroids_by_columns(centroids_np, col_tol=4)
+    
+    # print(f"shap of columns is: {cols_pts}")
+    
+    # for i in range(len(cols_pts)):
+    #     print(f"THE column {i} is : {cols_pts[i]} and its length: {len(cols_pts[i])}")
+    
+    print(f"\n=== Extracting Table Cells with Merge Detection ===")
+    print(f"Grid size: {len(rows_pts)} rows × {len(cols_pts)} columns")
+    
+    # Sort rows and columns
+    rows_sorted = sorted(rows_pts, key=lambda row: np.mean([pt[1] for pt in row]))
+    cols_sorted = sorted(cols_pts, key=lambda col: np.mean([pt[0] for pt in col]))
+    
+    from try_extract import visualize_code
+    # visualize_code(rows_sorted, cols_sorted)
+    
+    
+    print("-----\n\n\n\n")
+    print(rows_sorted)
+    
+    
+    # Build intersection grid
+    grid = build_intersection_grid(rows_sorted, cols_sorted)
+    
+    # visualize_code(grid)
+    
+    num_rows = len(rows_pts) - 1
+    num_cols = len(rows_pts[0]) - 1
+    
+    # Track which grid cells have been processed
+    processed = [[False for _ in range(num_cols)] for _ in range(num_rows)]
+    
+    # Store cells with metadata
+    cells_list = []
+    cell_id = 0
+    
+    lost_cells = 0
+    # Process each potential cell position
+    # for r in range(num_rows):
+    #     for c in range(num_cols):
+    # count = 0
+    # for i_row in rows_sorted:
+    #     for inter_ind in range(len(i_row)-1):
+    #         top_left  = i_row[inter_ind]
+
+    #         top_right = i_row[inter_ind+ 1]
+
+    #         next_col = cols_sorted[inter_ind+1]
+
+    #         next_col_el = next_col[count]
+
+    #         bottom_right = next_col[count+1]
+
+    #         current_col =cols_sorted[inter_ind]
+
+    #         bottom_left = current_col[count+1]
+    
+    for r_idx in range(len(rows_sorted) - 1):        # go through each row except last
+        row_top = rows_sorted[r_idx]                 # current row intersections
+        row_bottom = rows_sorted[r_idx + 1]          # next row intersections (below)
+        
+        for c_idx in range(len(row_top) - 1):        # go through each col except last
+            # Four corners of the cell
+            top_left = row_top[c_idx]
+            top_right = row_top[c_idx + 1]
+            bottom_left = row_bottom[c_idx]
+            bottom_right = row_bottom[c_idx + 1]
+            # # Skip if already processed
+            # if processed[r][c]:
+            #     continue
+            
+            # # Get starting corner
+            # top_left = grid[r][c]
+            # if top_left is None:
+            #     continue
+            
+            # # Detect cell span (how many columns and rows it occupies)
+            # col_span, row_span = detect_cell_span(gray, grid, r, c, num_rows, num_cols)
+            
+            # # Get bottom-right corner based on span
+            # bottom_right = grid[r + 1][c + 1]
+            
+            # if bottom_right is None:
+            #     print(f"  Warning: Missing bottom-right corner for cell at r{r}_c{c}")
+            #     lost_cells += 1
+            #     processed[r][c] = True
+            #     continue
+            
+            # Extract coordinates with padding
+            x1 = int(top_left[0]) + padding
+            y1 = int(top_left[1]) + padding
+            x2 = int(bottom_right[0]) - padding
+            y2 = int(bottom_right[1]) - padding
+            
+            # Validate bounds
+            h, w = working_img.shape[:2]
+            x1 = max(0, min(x1, w - 1))
+            y1 = max(0, min(y1, h - 1))
+            x2 = max(0, min(x2, w))
+            y2 = max(0, min(y2, h))
+            
+            if x2 <= x1 or y2 <= y1:
+                processed[r][c] = True
+                continue
+            
+            # Extract cell image
+            cell_img = working_img[y1:y2, x1:x2].copy()
+            
+            if cell_img.shape[0] < 5 or cell_img.shape[1] < 5:
+                processed[r][c] = True
+                continue
+            
+            # Create filename based on span
+            if col_span > 1 or row_span > 1:
+                cell_filename = f"cell_r{r}_c{c}_span{row_span}x{col_span}.png"
+                span_info = f" (spans {row_span} rows × {col_span} cols)"
+            else:
+                cell_filename = f"cell_r{r}_c{c}.png"
+                span_info = ""
+            
+            cell_path = os.path.join(output_dir, cell_filename)
+            cv2.imwrite(cell_path, cell_img)
+            
+            # Store cell metadata
+            cell_data = {
+                "id": cell_id,
+                "row": r,
+                "col": c,
+                "row_span": row_span,
+                "col_span": col_span,
+                "bbox": (x1, y1, x2, y2),
+                "width": x2 - x1,
+                "height": y2 - y1,
+                "image": cell_img,
+                "path": cell_path,
+                "is_merged": col_span > 1 or row_span > 1
+            }
+            
+            cells_list.append(cell_data)
+            
+            # print(f"  Cell {cell_id}: r{r}_c{c}{span_info} → {cell_filename}")
+            
+            # Mark all grid positions occupied by this cell as processed
+            for rr in range(r, r + row_span):
+                for cc in range(c, c + col_span):
+                    if rr < num_rows and cc < num_cols:
+                        processed[rr][cc] = True
+            
+            cell_id += 1
+        # count += 1
+    
+    print(f"\n✓ Extracted {len(cells_list)} cells (including merged cells)")
+    print(f"✓ Saved to: {output_dir}/")
+    print(f"Lost cells: {lost_cells}")
+    
+    # Create grid map for visualization
+    grid_map = create_grid_map(cells_list, num_rows, num_cols)
+    
+    return cells_list, grid_map
+
+
+
+
+-----------
+previous find_character_boundaries - assume that one cell has a one character
+------------
+def find_character_boundaries(column_intensities: np.ndarray, threshold: float = 0.2,
+                             min_char_width: int = 5, min_gap_width: int = 2) -> List[Tuple[int, int]]:
+    """
+    Find character boundaries based on column intensity patterns.
+
+    Args:
+        column_intensities: Array of column intensities
+        threshold: Threshold below which a column is considered a separator
+        min_char_width: Minimum width for a valid character
+        min_gap_width: Minimum width for a valid gap between characters
+
+    Returns:
+        List of (start, end) tuples for each character region
+    """
+    # Find columns that are above threshold (contain character content)
+    above_threshold = column_intensities > threshold
+
+    # Find transitions from low to high intensity (character starts)
+    # and from high to low intensity (character ends)
+    boundaries = []
+    in_character = False
+    start_col = 0
+
+    for i, is_content in enumerate(above_threshold):
+        if not in_character and is_content:
+            # Start of character
+            start_col = i
+            in_character = True
+        elif in_character and not is_content:
+            # End of character
+            char_width = i - start_col
+            if char_width >= min_char_width:
+                boundaries.append((start_col, i))
+            in_character = False
+
+    # Handle case where character extends to end of image
+    if in_character:
+        char_width = len(column_intensities) - start_col
+        if char_width >= min_char_width:
+            boundaries.append((start_col, len(column_intensities)))
+
+    # Merge boundaries that are too close together (likely same character)
+    if len(boundaries) > 1:
+        merged_boundaries = []
+        current_start, current_end = boundaries[0]
+
+        for start, end in boundaries[1:]:
+            gap_width = start - current_end
+            if gap_width < min_gap_width:
+                # Merge with current character
+                current_end = end
+            else:
+                # Save current character and start new one
+                merged_boundaries.append((current_start, current_end))
+                current_start, current_end = start, end
+
+        # Add the last character
+        merged_boundaries.append((current_start, current_end))
+        boundaries = merged_boundaries
+
+    return boundaries
+
+
+------------
+GOOD VERSION OF find charcter boundaries by columns
+-------------
+def find_character_boundaries_by_columns(
+        column_intensities: np.ndarray,
+        threshold: float = 0.05,
+        min_char_width: int = 2,
+        min_gap_width: int = 1,
+        return_states: bool = False
+    ) -> Tuple[List[Tuple[int, int]], int, Optional[np.ndarray]]:
+    """
+    Find character boundaries by scanning each column and grouping consecutive
+    'in_character' columns into runs.
+
+    Args:
+        column_intensities: 1D array of column intensities (preferably in [0,1]).
+        threshold: column is considered 'in_character' when its intensity > threshold.
+        min_char_width: minimum width (in columns) for a run to be considered a character.
+        min_gap_width: if the gap between two valid runs is < min_gap_width they will be merged.
+        return_states: if True, also return the boolean per-column `in_character` array.
+
+    Returns:
+        (boundaries, count, states)
+        - boundaries: list of (start, end) tuples, end is exclusive (Python-slice friendly).
+        - count: number of character boundaries after merging.
+        - states: optional 1D boolean array of length = n_columns (True = in_character).
+    """
+    
+    baseline = 0.01
+    col = np.asarray(column_intensities).astype(float).ravel()
+    n = col.size
+    if n == 0:
+        return [], 0, (np.array([], dtype=bool) if return_states else None)
+
+    # Normalize to [0,1] if values appear to be in a larger scale (e.g., 0..255)
+    if col.max() > 1.0:
+        col = col / float(col.max())
+
+    # Per-column boolean: True if column likely contains ink/character
+    # intensity_df = pd.DataFrame(column_intensities, columns=['intensity'])
+    # states = intensity_df['intensity'] > threshold
+    states = col > threshold
+
+    boundaries: List[Tuple[int, int]] = []
+    in_character = False
+    run_start = 0
+
+    small_punc_character = None
+    # 1) Scan columns and group consecutive True states into runs
+    for i, is_content in enumerate(states):
+        if small_punc_character:
+            if i in small_punc_character:
+                pass
+                # boundaries.append((small_punc_character[0], small_punc_character[1]))
+            else:
+                print(f"End of small punc character at column {i}")
+                boundaries.append((small_punc_character[0], small_punc_character[9]))
+                print(f"Boundaries: {boundaries}")
+                small_punc_character = None
+                in_character = False
+    
+        else:    
+        
+            if is_content:
+                if not in_character:
+                    # start a new run
+                    run_start = i
+                    in_character = True
+                # else: continuing current run
+            else:
+                if in_character:
+                    # end of run at column i (exclusive)
+                    run_end = i
+                    run_width = run_end - run_start
+                    # print(f"run_width: {run_width}")
+                    # print(f"min_char_width: {min_char_width}")
+                    if run_width >= min_char_width:
+                        boundaries.append((run_start, run_end))
+                    # reset
+                    in_character = False
+                if (col[i] + col[i-1] + col[i-2])/3 <= baseline:
+                    #    look for next 4 cols, if the value is increasing but not by much, consider it a character
+                    next_growth = col[i+1:i+10].mean() - col[i]
+                    if next_growth > 0.02 and next_growth < 0.05:
+                        max_value = col[i+1:i+10].max()
+                        if max_value <0.05:
+                            print(f"Found content at column {i} with value {next_growth}")
+
+                            print(f"FOUND DOT")
+                            small_punc_character = range(i, i+10)
+                            print(f"small_punc_character: {len(small_punc_character)}")
+                            
+                            
+                    
+
+    # if last run reaches the last column
+    if in_character:
+        run_end = n
+        run_width = run_end - run_start
+        if run_width >= min_char_width:
+            boundaries.append((run_start, run_end))
+
+    # 2) Merge runs separated by tiny gaps (< min_gap_width)
+    # if len(boundaries) > 1 and min_gap_width > 0:
+    #     merged: List[Tuple[int, int]] = []
+    #     cur_s, cur_e = boundaries[0]
+    #     for s, e in boundaries[1:]:
+    #         gap = s - cur_e
+    #         if gap < min_gap_width:
+    #             # merge this run into current
+    #             cur_e = e
+    #         else:
+    #             merged.append((cur_s, cur_e))
+    #             cur_s, cur_e = s, e
+        # merged.append((cur_s, cur_e))
+        # boundaries = merged
+
+    count = len(boundaries)
+    return boundaries, count, (states if return_states else None)
