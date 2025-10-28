@@ -10,7 +10,7 @@ src/resize.py (resize words images to standard dimension (100 X 16 pixels ))
 experiment/improve_quality.py (improve quality of words images before character identification)
 src/try_blobs.py (from blobs to words)
 src/seg_cells.py (from words to characters)(on this stage characters are size 32 X 32 pixels )
-src/find_size.py (to remove white characters , iamges where no characters)
+src/find_size.py (to separate characters if too close to each other)
 models/train_number_other.py - script to train NUMBER and OTHER classifier
 src/sort_csv.py - for sorting filenames in diff csv files for 1. convenient to read and 2. to escape errors 
 
@@ -114,12 +114,11 @@ WHAT IS VULNERABLE IN CURRENT RESULTS
    Pattern:
    if the text is number -> whitespaces are larger. Main issue that is hard to overcome (the same whitespace are between words, not characters)
 
-3. General pipeline is manual
-   Meaning: if someone would like to input image of table and receive csv as ouput , currently no main file to perform this sequence of actions
+3. The size of cells were sacrificed; meaning in final table_visualization.png the cells are not the original size: cause additional errors
 
-4. The size of cells were sacrificed; meaning in final table_visualization.png the cells are not the original size: cause additional errors
-5. Although successfully but code relies on predefined number of rows and cols (can be easily solved)
-6. Although successfully implemented code relies on predefined OCR tool to identify type of blob
+4. Although successfully but code relies on predefined number of rows and cols (can be easily solved)
+
+5. Although successfully implemented code relies on predefined OCR tool to identify type of blob
 
 USEFUL TECHNIQUES IMPLEMENTED:
 
