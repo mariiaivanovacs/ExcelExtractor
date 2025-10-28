@@ -1,4 +1,4 @@
-path = "cells_out"
+path = "words_production"
 
 # i need to find the image in this folder the max width and max height of images 
 import os

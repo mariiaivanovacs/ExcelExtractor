@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-"""
-Final script to combine CNN predictions back into words and cells
-Creates both CSV output and visualization of the reconstructed table
-"""
 
 import os
 import re
@@ -148,7 +143,7 @@ def reconstruct_words_and_cells(predictions_df):
     
     return reconstructed_cells
 
-def create_table_csv(reconstructed_cells, all_cells, output_file='data/csv/reconstructed_table.csv'):
+def create_table_csv(reconstructed_cells, all_cells, output_file='data/output/reconstructed_table.csv'):
     """
     Create CSV file with all cells, using 'WORD' for non-numeric cells
     """
@@ -195,7 +190,7 @@ def create_table_csv(reconstructed_cells, all_cells, output_file='data/csv/recon
     
     return df
 
-def create_visualization(csv_file='data/csv/reconstructed_table.csv', output_file='results/table_visualization.png'):
+def create_visualization(csv_file='data/csv/reconstructed_table.csv', output_file='data/output/table_visualization.png'):
     """
     Create visualization of the reconstructed table by reading from CSV file
     """
@@ -209,7 +204,7 @@ def create_visualization(csv_file='data/csv/reconstructed_table.csv', output_fil
     print(f"Loaded table with {len(table_df)} rows and {len(table_df.columns)} columns")
 
     # Create figure with two subplots
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(20, 16))
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(40, 32))
 
     # Plot 1: Table heatmap showing cell types
     table_numeric = table_df.copy()
@@ -265,7 +260,9 @@ def create_visualization(csv_file='data/csv/reconstructed_table.csv', output_fil
             else:
                 color_matrix[i, j] = 2
                 # Truncate long numbers for display
-                display_text = str(cell_value)[:8] + '...' if len(str(cell_value)) > 8 else str(cell_value)
+                if len(str(cell_value)) >= 12:
+                    cell_value = str(cell_value)[:12] + "..."
+                display_text = str(cell_value)  if len(str(cell_value)) > 8 else str(cell_value)
                 row_annotations.append(display_text)
         annotations.append(row_annotations)
 
@@ -276,7 +273,7 @@ def create_visualization(csv_file='data/csv/reconstructed_table.csv', output_fil
                 cmap=['white', 'lightblue', 'orange'],
                 cbar_kws={'label': 'Cell Type'},
                 ax=ax2,
-                annot_kws={'size': 8})
+                annot_kws={'size': 10})
 
     ax2.set_title(f'Table Content Sample (First {sample_size} rows, {sample_cols} columns)',
                   fontsize=14, fontweight='bold')
@@ -314,44 +311,44 @@ def create_visualization(csv_file='data/csv/reconstructed_table.csv', output_fil
     print(f"  Text cells (WORD): {word_cells} ({word_cells/total_cells*100:.1f}%)")
     print(f"  Number cells: {number_cells} ({number_cells/total_cells*100:.1f}%)")
 
-def create_statistics_report(reconstructed_cells, all_cells):
-    """
-    Create a statistics report about the reconstruction
-    """
-    print("\n" + "="*60)
-    print("RECONSTRUCTION STATISTICS")
-    print("="*60)
+# def create_statistics_report(reconstructed_cells, all_cells):
+#     """
+#     Create a statistics report about the reconstruction
+#     """
+#     print("\n" + "="*60)
+#     print("RECONSTRUCTION STATISTICS")
+#     print("="*60)
     
-    total_cells = len(all_cells)
-    numeric_cells = len(reconstructed_cells)
-    word_cells = total_cells - numeric_cells
+#     total_cells = len(all_cells)
+#     numeric_cells = len(reconstructed_cells)
+#     word_cells = total_cells - numeric_cells
     
-    print(f"Total cells found: {total_cells}")
-    print(f"Cells with numeric content: {numeric_cells}")
-    print(f"Cells with text content (WORD): {word_cells}")
-    print(f"Numeric content percentage: {numeric_cells/total_cells*100:.1f}%")
+#     print(f"Total cells found: {total_cells}")
+#     print(f"Cells with numeric content: {numeric_cells}")
+#     print(f"Cells with text content (WORD): {word_cells}")
+#     print(f"Numeric content percentage: {numeric_cells/total_cells*100:.1f}%")
     
-    if reconstructed_cells:
-        # Confidence statistics
-        confidences = [cell['confidence'] for cell in reconstructed_cells.values()]
-        print(f"\nConfidence Statistics:")
-        print(f"  Average confidence: {np.mean(confidences):.3f}")
-        print(f"  Min confidence: {np.min(confidences):.3f}")
-        print(f"  Max confidence: {np.max(confidences):.3f}")
+#     if reconstructed_cells:
+#         # Confidence statistics
+#         confidences = [cell['confidence'] for cell in reconstructed_cells.values()]
+#         print(f"\nConfidence Statistics:")
+#         print(f"  Average confidence: {np.mean(confidences):.3f}")
+#         print(f"  Min confidence: {np.min(confidences):.3f}")
+#         print(f"  Max confidence: {np.max(confidences):.3f}")
         
-        # Word count statistics
-        word_counts = [cell['word_count'] for cell in reconstructed_cells.values()]
-        print(f"\nWord Count Statistics:")
-        print(f"  Average words per numeric cell: {np.mean(word_counts):.1f}")
-        print(f"  Max words in a cell: {np.max(word_counts)}")
+#         # Word count statistics
+#         word_counts = [cell['word_count'] for cell in reconstructed_cells.values()]
+#         print(f"\nWord Count Statistics:")
+#         print(f"  Average words per numeric cell: {np.mean(word_counts):.1f}")
+#         print(f"  Max words in a cell: {np.max(word_counts)}")
         
-        # Character length statistics
-        text_lengths = [len(cell['text']) for cell in reconstructed_cells.values()]
-        print(f"\nText Length Statistics:")
-        print(f"  Average characters per numeric cell: {np.mean(text_lengths):.1f}")
-        print(f"  Max characters in a cell: {np.max(text_lengths)}")
+#         # Character length statistics
+#         text_lengths = [len(cell['text']) for cell in reconstructed_cells.values()]
+#         print(f"\nText Length Statistics:")
+#         print(f"  Average characters per numeric cell: {np.mean(text_lengths):.1f}")
+#         print(f"  Max characters in a cell: {np.max(text_lengths)}")
     
-    print("="*60)
+#     print("="*60)
 
 def main():
     """Main function to orchestrate the reconstruction process"""
@@ -359,10 +356,9 @@ def main():
     
     try:
         # Load predictions
-        # predictions_df = load_predictions()
+        predictions_df = load_predictions()
         
-        # Get all cells
-        # all_cells = get_all_cells()
+        all_cells = get_all_cells()
         
         # Reconstruct words and cells
         print("\nReconstructing words from character predictions...")
@@ -377,8 +373,8 @@ def main():
         create_visualization()  # Now reads from CSV file directly
         
         print(f"\n✅ Reconstruction complete!")
-        print(f"📄 CSV file: data/csv/reconstructed_table.csv")
-        print(f"🖼️  Visualization: results/table_visualization.png")
+        print(f"📄 CSV file: data/output/reconstructed_table.csv")
+        print(f"🖼️  Visualization: data/output/table_visualization.png")
         
     except Exception as e:
         print(f"❌ Error during reconstruction: {e}")

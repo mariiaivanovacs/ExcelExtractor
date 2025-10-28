@@ -1,0 +1,88 @@
+UNUSED FUNCTIONS ANALYSIS - Files from run_pipeline.py
+=======================================================
+
+utils/preprocessing.py:
+- upscale_to_size (defined but never called)
+- warp_table (defined but never called)
+- cells_to_csv_structure (defined but called only once, result not used)
+
+
+src/try_blobs.py:
+- remove_cell_boundaries (defined but never called in main execution)
+- visualize_clusters (called but output not used)
+- extract_word_images (defined but never called)
+- calculate_column_intensity (defined but never called)
+- calculate_row_intensity (defined but never called)
+- find_character_boundaries_by_columns (defined but never called)
+- find_word_boundaries_by_rows (defined but never called)
+- find_word_boundaries_by_columns (defined but never called)
+- _to_gray_float (defined but never called)
+- _find_mask_runs (defined but never called)
+- crop_to_content (defined but never called)
+- detect_grid_lines (called but only for debugging, not used in main flow)
+- remove_black_borders (defined but incomplete implementation)
+
+src/resize.py:
+- All functions are used (process_image_pad_lr, main)
+
+experiment/improve_quality.py:
+- upsample (defined but never called)
+- ensure_gray (defined but never called)
+- generate_variants (defined but never called)
+
+src/seg_cells.py:
+- mask_pixels (defined but never called)
+- split_wide_box_by_projection (defined but never called)
+- split_wide_box_by_watershed (defined but never called)
+- non_max_suppression_boxes (defined but never called)
+- draw_boxes (defined but never called)
+- upscale_image (defined but never called)
+- preprocess_for_model (defined but never called)
+- remove_cell_boundaries (defined but never called)
+- find_top_character_profile (defined but never called)
+- calculate_column_intensity_top_bottom (defined but never called)
+- check_vertical_line_clear (defined but never called)
+- crop_character_vertically (defined but never called)
+- pad_or_crop_to_target (defined but never called)
+- process_single_cell_and_save (defined but never called)
+
+src/sort_csv.py:
+- All functions are used (sort)
+
+src/find_size.py:
+- largest_black_region_size (used in check_size)
+- preprocess_for_components (defined but never called)
+- find_largest_black_bbox (defined but never called)
+- center_crop_or_pad_horiz (defined but never called)
+- split_character_by_center_and_pad (defined but never called)
+
+src/test_digits_model.py:
+- All functions are used (preprocess_image, main)
+
+src/combine_predictions_to_table.py:
+- create_statistics_report (defined but never called)
+- visualize_table_only (defined but only used when called with --visualize-only flag)
+
+SUMMARY:
+========
+Total unused functions found: 35
+Files with most unused functions:
+1. src/seg_cells.py: 13 unused functions
+2. src/try_blobs.py: 11 unused functions  
+3. utils/preprocessing.py: 6 unused functions
+4. experiment/improve_quality.py: 3 unused functions
+5. src/find_size.py: 4 unused functions
+6. src/combine_predictions_to_table.py: 2 unused functions
+
+These functions appear to be:
+- Legacy code from development/testing
+- Alternative implementations not used in final pipeline
+- Debug/visualization functions
+- Utility functions that were planned but not integrated
+- Functions for features not yet implemented
+
+Recommendation: Review each unused function to determine if it should be:
+- Removed (if truly obsolete)
+- Moved to a utilities module (if potentially useful)
+- Integrated into the pipeline (if needed functionality)
+- Kept for future development (if planned features)

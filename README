@@ -4,24 +4,21 @@ PURPOSE OF PROJECT: EXTRACT TEXT FROM TABLES IN IMAGES AND STORE RESULT IN CSV F
 FILES IN MAIN PIPEPINE:
 
 utils/preprocessing.py
-
+src/clean_white_words.py - depends on argument - clean cells from black borders or to remove white cells or blobs
 src/try_blobs.py (from cells to blobs)
-
+src/resize.py (resize words images to standard dimension (100 X 16 pixels ))
+experiment/improve_quality.py (improve quality of words images before character identification)
 src/try_blobs.py (from blobs to words)
-
 src/seg_cells.py (from words to characters)(on this stage characters are size 32 X 32 pixels )
-
 src/find_size.py (to remove white characters , iamges where no characters)
-
 models/train_number_other.py - script to train NUMBER and OTHER classifier
+src/sort_csv.py - for sorting filenames in diff csv files for 1. convenient to read and 2. to escape errors 
 
-src/test_character_classifier.py - check every word image and save it to numbers.csv or other.csv
-
-src/sort_csv.py - for sorting filenames in numbers.csv and other.csv
-Important note: Why classify specifically words? Some digits might be broken or unrecognizable,
+experiment/enhanced_cell_type_detector.py - check every blob image and save it to numbers_latest.csv or other_latest.csv
+# ORIGINALLY src/test_character_classifier.py was used to identify the type of word type . however enhanced_cell_type_detector with usage of OCR is more accurate, although cannot identify exact letters but can differentiate between numbers and words
+Important note: Why classify specifically blobs? Some digits might be broken or unrecognizable,
 that will lead to its exclusion from final code flow
 
-src/find_size.py - file for additional separation for merged, too close to each other characters
 
 # in my current pipeline - 36 files identificated with too large characters and replaced / splitted sucessfully
 
@@ -59,19 +56,30 @@ Success emerged only after feeding samples of real data into model
 FOLDERS ANNOTATIONS: 
 
 blobs: folder for all rows found in cells
+
 cells_cleaned: folder for all separated images of each cell
 characters: each character separated + adding padding to have 32 X 32 pixels size
+
 data: stored for input and output data + some csv file
 experiment: folder for trying / executing new ideas. Was used primary for indetifcaiton of features for training model (RandomForest, or XGBOOST - Failed: accuracy: 60%%)
+
 mnt: folder for storing results, evaluation of results of model executions
+
 models: folder for training models (CNNs) + stored files of RandomForest, Knn, XGBOOST, scalel and label_encoder (all are not in use, had place during development) Keep for purpose of future development
+
 results: folder for temporary outcomes, results of funciton, can be clear without losing smth important
+
 src: folder for main component file, was originally created for training model to predict number, currently most files are related to data preprocessing in terms of division/ extraction words and characters from images of cells + some utility
+
 steps_out: folder for main outcome of initial/ first preprocessing table image
+
 temporary_compare: static folder for storing some inner stages results - backup of important image analysis
 test, tests_2: folders used for small batch training, execution, test running of models accuracy
+
 utils: folder for initial preprocessing of table, detection of lines.
+
 words: separated, not-padded words
+
 words_production: separated, padded, words extracted
 
 MAIN STAGES IDENTIFIED:
@@ -90,9 +98,10 @@ Train CNN to identify digits 0-9
 Apply and store result in csv and visualize
 
 CURRENTLY FULL SUCCESS:
-Preprocess table and extract all cells correctly
-Extract all blobs and all words correctly
-Train CNN to identify digits 0-9 (aroung 85% accuracy - best result)
+Preprocess table and extract all cells correctly ✅ 
+Extract all blobs and all words correctly ✅ 
+Train CNN to identify digits 0-9 (aroung 85% accuracy - best result) ✅ 
+Most of blobs are correctly identified ✅ 
 
 WHAT IS VULNERABLE IN CURRENT RESULTS 
 
@@ -109,6 +118,8 @@ WHAT IS VULNERABLE IN CURRENT RESULTS
    Meaning: if someone would like to input image of table and receive csv as ouput , currently no main file to perform this sequence of actions
 
 4. The size of cells were sacrificed; meaning in final table_visualization.png the cells are not the original size: cause additional errors
+5. Although successfully but code relies on predefined number of rows and cols (can be easily solved)
+6. Although successfully implemented code relies on predefined OCR tool to identify type of blob
 
 USEFUL TECHNIQUES IMPLEMENTED:
 
@@ -146,7 +157,22 @@ INSIGHTS ABOUT DIFFERENTIATION BETWEEN WORDS AND NUMBERS:
    Frequency white
    Average Peak white
    Compactness
-   Vertical intensity variance (CAN see results in temporary_compare/feature_pairs_old.png)
+   Vertical intensity variance 
+   (CAN see results in temporary_compare/feature_pairs_old.png)
+
+   MAIN DATA ANALYSIS TECHNIQUES USED 
+   1. Visual inspection of images (inspect_cells_production_cell_r0_c3.png for example)
+
+   2. Histogram analysis (temporary_compare/feature_distributions copy.png for ex)
+
+
+   3. Feature engineering and correlation analysis
+   (temporary_compare/feature_pairs_old.png for ex)
+   4. Model-based feature importance
+   (temporary_compare/features_importance_RandomForest.png )
+   5. Heatmap of correlation
+   (temporary_compare/feature_correlation_heatmap.png) -> analysis: whether all features are confusing/ meaning non-informative or its amount is confusing
+
 
 APPROACHES THAT WERE TRIED AND FAILED / NOT IMPLEMENTED 
 
@@ -163,3 +189,10 @@ To see how model (RandomForest) performs: run src/test_xgboost.py
 MODELS TRAINED:
 fine_tuned_real_data_classifier.keras - model to define digits 0-9
 mnt/outputs/number_detector_cnn.keras - model to define if NUMBER or OTHER
+
+
+COMMAND TO RUN MAIN PIPELINE !!!!! 
+
+file: run_pipeline.py
+
+python3 run_pipeline.py data/input/original.jpeg

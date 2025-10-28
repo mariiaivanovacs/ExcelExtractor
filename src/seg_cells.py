@@ -1,55 +1,47 @@
-# segment.py
 import cv2
 import numpy as np
 import pandas as pd
 from typing import List, Tuple, Dict, Optional, Union
-# improt random
 import random
 import matplotlib.pyplot as plt
 
 from try_blobs import extract_blobs
 
-# i need to import from the directory o nthe same level as parent
 import sys
 import os
 
-# Add the parent directory to sys.path so 'utils' is importable
-def mask_pixels(img, output_path="masked_image.png"):
-    import numpy as np
-    import cv2
+# def mask_pixels(img, output_path="masked_image.png"):
+#     import numpy as np
+#     import cv2
 
-    # Convert to float 0–1
-    img = img.astype(np.float32) / 255.0
+#     # Convert to float 0–1
+#     img = img.astype(np.float32) / 255.0
 
-    # If image is grayscale (2D), expand to 3D so we can use axis=2
-    if len(img.shape) == 2:
-        img = np.stack([img, img, img], axis=2)
+#     # If image is grayscale (2D), expand to 3D so we can use axis=2
+#     if len(img.shape) == 2:
+#         img = np.stack([img, img, img], axis=2)
 
-    # Compute brightness and color variation
-    brightness = np.mean(img, axis=2)
-    color_diff = np.max(img, axis=2) - np.min(img, axis=2)
+#     # Compute brightness and color variation
+#     brightness = np.mean(img, axis=2)
+#     color_diff = np.max(img, axis=2) - np.min(img, axis=2)
 
-    # Threshold
-    bright_thresh = 0.87
-    color_thresh = 0.1
+#     # Threshold
+#     bright_thresh = 0.87
+#     color_thresh = 0.1
 
-    # Mask for light gray pixels
-    mask = (brightness > bright_thresh) & (color_diff < color_thresh)
+#     # Mask for light gray pixels
+#     mask = (brightness > bright_thresh) & (color_diff < color_thresh)
 
-    # Replace with white
-    img[mask] = [1.0, 1.0, 1.0]
+#     # Replace with white
+#     img[mask] = [1.0, 1.0, 1.0]
 
-    # Convert back to uint8
-    result = (img * 255).astype(np.uint8)
+#     # Convert back to uint8
+#     result = (img * 255).astype(np.uint8)
     
     
-    cv2.imwrite(output_path, result)
-    return result
-# from math import random
+#     cv2.imwrite(output_path, result)
+#     return result
 
-# -------------------------
-# Helper utils / defaults
-# -------------------------
 DEFAULTS = {
     "area_min": 40,          # minimal connected-component area to keep
     "min_h": 8,              # minimal height in px to keep
@@ -62,426 +54,398 @@ DEFAULTS = {
     "adaptive_C": 8,
 }
 
-# -------------------------
-# Core segmentation
-# -------------------------
-def segment_cell(img_cell: np.ndarray, params: Dict = None) -> List[Dict]:
-    """
-    Segment characters inside a cell image.
 
-    Args:
-        img_cell: np.ndarray BGR or grayscale image of the whole cell.
-        params: optional dict of parameters (overrides DEFAULTS).
+# def segment_cell(img_cell: np.ndarray, params: Dict = None) -> List[Dict]:
+#     """
+#     Segment characters inside a cell image.
 
-    Returns:
-        List of dicts sorted by left-to-right with keys:
-            - 'bbox': (x, y, w, h)
-            - 'crop': grayscale crop (numpy array)
-            - 'center_x': center x coordinate (int)
-            - 'mask': binary mask of the crop (optional)
-    """
-    if params is None:
-        params = DEFAULTS
-    else:
-        p = DEFAULTS.copy()
-        p.update(params)
-        params = p
+#     Args:
+#         img_cell: np.ndarray BGR or grayscale image of the whole cell.
+#         params: optional dict of parameters (overrides DEFAULTS).
 
-    # ensure grayscale
-    if img_cell.ndim == 3:
-        gray = cv2.cvtColor(img_cell, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = img_cell.copy()
+#     Returns:
+#         List of dicts sorted by left-to-right with keys:
+#             - 'bbox': (x, y, w, h)
+#             - 'crop': grayscale crop (numpy array)
+#             - 'center_x': center x coordinate (int)
+#             - 'mask': binary mask of the crop (optional)
+#     """
+#     if params is None:
+#         params = DEFAULTS
+#     else:
+#         p = DEFAULTS.copy()
+#         p.update(params)
+#         params = p
 
-    # 1) Denoise
-    blur = cv2.GaussianBlur(gray, (3, 3), 0)
+#     # ensure grayscale
+#     if img_cell.ndim == 3:
+#         gray = cv2.cvtColor(img_cell, cv2.COLOR_BGR2GRAY)
+#     else:
+#         gray = img_cell.copy()
 
-    # 2) Binarize: adaptive if requested, else Otsu
-    if params["use_adaptive_thresh"]:
-        thresh = cv2.adaptiveThreshold(blur, 255,
-                                       cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY_INV,
-                                       params["adaptive_block"],
-                                       params["adaptive_C"])
-    else:
-        _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+#     # 1) Denoise
+#     blur = cv2.GaussianBlur(gray, (3, 3), 0)
 
-    # 3) Morphology (clean small holes / specks)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, params["morph_kernel"])
-    # first open to remove small dots, then close to fill small holes
-    morph = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
-    morph = cv2.morphologyEx(morph, cv2.MORPH_CLOSE, kernel, iterations=1)
+#     # 2) Binarize: adaptive if requested, else Otsu
+#     if params["use_adaptive_thresh"]:
+#         thresh = cv2.adaptiveThreshold(blur, 255,
+#                                        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+#                                        cv2.THRESH_BINARY_INV,
+#                                        params["adaptive_block"],
+#                                        params["adaptive_C"])
+#     else:
+#         _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
-    # 4) Find contours / connected components
-    contours, _ = cv2.findContours(morph, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#     # 3) Morphology (clean small holes / specks)
+#     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, params["morph_kernel"])
+#     # first open to remove small dots, then close to fill small holes
+#     morph = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
+#     morph = cv2.morphologyEx(morph, cv2.MORPH_CLOSE, kernel, iterations=1)
 
-    boxes = []
-    h_img, w_img = gray.shape
+#     # 4) Find contours / connected components
+#     contours, _ = cv2.findContours(morph, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    for c in contours:
-        print("CONTOUR IS FOUND")
-        x, y, w, h = cv2.boundingRect(c)
-        area = cv2.contourArea(c)
-        # filter small/noise
-        # if area < params["area_min"] or h < params["min_h"]:
-        #     print("CONTOUR IS TOO SMALL")
-        #     continue
-        boxes.append((x, y, w, h))
-    print("AFTER LEN OF BOXES:")
-    print(len(boxes))
+#     boxes = []
+#     h_img, w_img = gray.shape
 
-    # 5) Expand boxes slightly (optional) to include anti-aliased edges
-    expanded = []
-    pad = 1
-    for x, y, w, h in boxes:
-        xa = max(0, x - pad)
-        ya = max(0, y - pad)
-        xb = min(w_img, x + w + pad)
-        yb = min(h_img, y + h + pad)
-        expanded.append((xa, ya, xb - xa, yb - ya))
+#     for c in contours:
+#         # print("CONTOUR IS FOUND")
+#         x, y, w, h = cv2.boundingRect(c)
+#         area = cv2.contourArea(c)
 
-    # 6) For each box: if very wide -> try splitting by projection / watershed
-    final_boxes = []
-    for (x, y, w, h) in expanded:
-        if w / max(1, h) > params["wide_split_ratio"]:
-            splits = split_wide_box_by_projection(morph[y:y+h, x:x+w], x_offset=x,
-                                                 gap_rel=params["gap_rel"])
-            if splits:
-                final_boxes.extend(splits)
-                continue
-            # fallback to watershed split
-            ws = split_wide_box_by_watershed(morph[y:y+h, x:x+w], x_offset=x)
-            if ws:
-                final_boxes.extend(ws)
-                continue
-        final_boxes.append((x, y, w, h))
+#         boxes.append((x, y, w, h))
 
-    # 7) Post-filter: remove nested / duplicates (keep largest)
-    final_boxes = non_max_suppression_boxes(final_boxes, iou_thresh=0.15)
 
-    # 8) Create output entries and sort left-to-right
-    entries = []
-    for (x, y, w, h) in final_boxes:
-        crop_gray = gray[y:y+h, x:x+w]
-        crop_mask = morph[y:y+h, x:x+w]
-        center_x = x + w // 2
-        entries.append({
-            "bbox": (x, y, w, h),
-            "crop": crop_gray,
-            "mask": crop_mask,
-            "center_x": center_x
-        })
+#     # 5) Expand boxes slightly (optional) to include anti-aliased edges
+#     expanded = []
+#     pad = 1
+#     for x, y, w, h in boxes:
+#         xa = max(0, x - pad)
+#         ya = max(0, y - pad)
+#         xb = min(w_img, x + w + pad)
+#         yb = min(h_img, y + h + pad)
+#         expanded.append((xa, ya, xb - xa, yb - ya))
 
-    entries = sorted(entries, key=lambda e: e["center_x"])
-    return entries
+#     # 6) For each box: if very wide -> try splitting by projection / watershed
+#     final_boxes = []
+#     for (x, y, w, h) in expanded:
+#         if w / max(1, h) > params["wide_split_ratio"]:
+#             splits = split_wide_box_by_projection(morph[y:y+h, x:x+w], x_offset=x,
+#                                                  gap_rel=params["gap_rel"])
+#             if splits:
+#                 final_boxes.extend(splits)
+#                 continue
+#             # fallback to watershed split
+#             ws = split_wide_box_by_watershed(morph[y:y+h, x:x+w], x_offset=x)
+#             if ws:
+#                 final_boxes.extend(ws)
+#                 continue
+#         final_boxes.append((x, y, w, h))
 
-# -------------------------
-# Splitting helpers
-# -------------------------
-def split_wide_box_by_projection(bin_crop: np.ndarray, x_offset: int = 0, gap_rel: float = 0.7):
-    """
-    Split an input binary crop (foreground = 255) vertically using column projection.
-    Returns list of bboxes (x,y,w,h) with global coordinates (x offset added).
-    """
-    h, w = bin_crop.shape
-    # sum of foreground per column (foreground is 255 for inverted thresh)
-    col_sum = (bin_crop > 0).astype(np.int32).sum(axis=0)
-    # smooth column sum to avoid tiny spikes
-    kernel = np.ones(3, dtype=np.int32)
-    col_sum_s = np.convolve(col_sum, kernel, mode='same')
+#     # 7) Post-filter: remove nested / duplicates (keep largest)
+#     final_boxes = non_max_suppression_boxes(final_boxes, iou_thresh=0.15)
 
-    # estimate average char width by detecting connected groups in projection
-    nonzero = np.where(col_sum_s > 0)[0]
-    if nonzero.size == 0:
-        return []
+#     # 8) Create output entries and sort left-to-right
+#     entries = []
+#     for (x, y, w, h) in final_boxes:
+#         crop_gray = gray[y:y+h, x:x+w]
+#         crop_mask = morph[y:y+h, x:x+w]
+#         center_x = x + w // 2
+#         entries.append({
+#             "bbox": (x, y, w, h),
+#             "crop": crop_gray,
+#             "mask": crop_mask,
+#             "center_x": center_x
+#         })
 
-    # find gaps where col_sum == 0 or very small
-    zero_mask = col_sum_s <= (col_sum_s.max() * 0.05)  # columns with near-zero ink
-    # find continuous zero intervals
-    gaps = []
-    i = 0
-    while i < w:
-        if zero_mask[i]:
-            j = i
-            while j < w and zero_mask[j]:
-                j += 1
-            gaps.append((i, j))
-            i = j
-        else:
-            i += 1
+#     entries = sorted(entries, key=lambda e: e["center_x"])
+#     return entries
 
-    # determine segment boundaries using gaps that are wide enough
-    # estimate average width by looking at widths between gaps
-    # build non-gap segments
-    segments = []
-    prev = 0
-    for (a, b) in gaps:
-        if a - prev > 2:
-            segments.append((prev, a))
-        prev = b
-    if prev < w:
-        segments.append((prev, w))
 
-    # if we get multiple segments, convert to boxes
-    boxes = []
-    for (sx, ex) in segments:
-        seg_w = ex - sx
-        if seg_w <= 2:
-            continue
-        boxes.append((x_offset + sx, 0, seg_w, h))
+# def split_wide_box_by_projection(bin_crop: np.ndarray, x_offset: int = 0, gap_rel: float = 0.7):
+#     """
+#     Split an input binary crop (foreground = 255) vertically using column projection.
+#     Returns list of bboxes (x,y,w,h) with global coordinates (x offset added).
+#     """
+#     h, w = bin_crop.shape
+#     # sum of foreground per column (foreground is 255 for inverted thresh)
+#     col_sum = (bin_crop > 0).astype(np.int32).sum(axis=0)
+#     # smooth column sum to avoid tiny spikes
+#     kernel = np.ones(3, dtype=np.int32)
+#     col_sum_s = np.convolve(col_sum, kernel, mode='same')
 
-    # if segmentation produced only one segment — return empty (no split)
-    if len(boxes) <= 1:
-        return []
-    return boxes
+#     # estimate average char width by detecting connected groups in projection
+#     nonzero = np.where(col_sum_s > 0)[0]
+#     if nonzero.size == 0:
+#         return []
 
-def split_wide_box_by_watershed(bin_crop: np.ndarray, x_offset: int = 0):
-    """
-    Attempt to split connected characters inside a wide binary crop using watershed.
-    Returns list of bboxes in global coords.
-    """
-    # bin_crop: binary (255 foreground)
-    # convert to uint8
-    img = bin_crop.copy()
-    if img.max() <= 1:
-        img = (img * 255).astype(np.uint8)
-    else:
-        img = img.astype(np.uint8)
+#     # find gaps where col_sum == 0 or very small
+#     zero_mask = col_sum_s <= (col_sum_s.max() * 0.05)  # columns with near-zero ink
+#     # find continuous zero intervals
+#     gaps = []
+#     i = 0
+#     while i < w:
+#         if zero_mask[i]:
+#             j = i
+#             while j < w and zero_mask[j]:
+#                 j += 1
+#             gaps.append((i, j))
+#             i = j
+#         else:
+#             i += 1
 
-    # distance transform
-    dist = cv2.distanceTransform(img, cv2.DIST_L2, 5)
-    # threshold to obtain sure foreground
-    _, fg = cv2.threshold(dist, 0.3 * dist.max(), 255, 0)
-    fg = np.uint8(fg)
-    # sure background
-    kernel = np.ones((3,3), np.uint8)
-    bg = cv2.dilate(img, kernel, iterations=3)
-    # markers
-    _, markers = cv2.connectedComponents(fg)
-    markers = markers + 1
-    markers[bg == 0] = 0  # background should be 0 for watershed
 
-    # prepare color image for watershed
-    h, w = img.shape
-    color = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-    try:
-        markers = cv2.watershed(color, markers)
-    except Exception:
-        return []
+#     segments = []
+#     prev = 0
+#     for (a, b) in gaps:
+#         if a - prev > 2:
+#             segments.append((prev, a))
+#         prev = b
+#     if prev < w:
+#         segments.append((prev, w))
 
-    # regions >1 correspond to unique markers
-    boxes = []
-    for m in np.unique(markers):
-        if m <= 1:
-            continue
-        mask = (markers == m).astype(np.uint8)
-        cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not cnts:
-            continue
-        x, y, w_box, h_box = cv2.boundingRect(cnts[0])
-        boxes.append((x_offset + x, y, w_box, h_box))
+#     # if we get multiple segments, convert to boxes
+#     boxes = []
+#     for (sx, ex) in segments:
+#         seg_w = ex - sx
+#         if seg_w <= 2:
+#             continue
+#         boxes.append((x_offset + sx, 0, seg_w, h))
 
-    # keep boxes sorted left-to-right
-    boxes = sorted(boxes, key=lambda b: b[0])
-    # if nothing sensible, return empty
-    if len(boxes) <= 1:
-        return []
-    return boxes
+#     # if segmentation produced only one segment — return empty (no split)
+#     if len(boxes) <= 1:
+#         return []
+#     return boxes
 
-# -------------------------
-# NMS for small boxes
-# -------------------------
-def non_max_suppression_boxes(boxes: List[Tuple[int,int,int,int]], iou_thresh: float = 0.15):
-    """
-    Removes nested or heavily overlapping boxes. Returns filtered boxes.
-    Boxes are (x,y,w,h).
-    """
-    if not boxes:
-        return []
-    arr = np.array(boxes).astype(np.float32)
-    x1 = arr[:,0]
-    y1 = arr[:,1]
-    x2 = arr[:,0] + arr[:,2]
-    y2 = arr[:,1] + arr[:,3]
-    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
-    order = x1.argsort()  # left to right order
+# def split_wide_box_by_watershed(bin_crop: np.ndarray, x_offset: int = 0):
+#     """
+#     Attempt to split connected characters inside a wide binary crop using watershed.
+#     Returns list of bboxes in global coords.
+#     """
+#     # bin_crop: binary (255 foreground)
+#     # convert to uint8
+#     img = bin_crop.copy()
+#     if img.max() <= 1:
+#         img = (img * 255).astype(np.uint8)
+#     else:
+#         img = img.astype(np.uint8)
 
-    keep = []
-    used = np.zeros(len(boxes), dtype=np.bool_)
-    for i in order:
-        if used[i]:
-            continue
-        keep.append(tuple(arr[i].astype(int)))
-        for j in range(len(boxes)):
-            if used[j] or j == i:
-                continue
-            # compute IoU
-            xx1 = max(x1[i], x1[j])
-            yy1 = max(y1[i], y1[j])
-            xx2 = min(x2[i], x2[j])
-            yy2 = min(y2[i], y2[j])
-            w_int = max(0.0, xx2 - xx1 + 1)
-            h_int = max(0.0, yy2 - yy1 + 1)
-            inter = w_int * h_int
-            union = areas[i] + areas[j] - inter
-            if union <= 0:
-                continue
-            iou = inter / union
-            if iou > iou_thresh:
-                # mark smaller one as used
-                if areas[i] >= areas[j]:
-                    used[j] = True
-                else:
-                    used[i] = True
-    return keep
+#     # distance transform
+#     dist = cv2.distanceTransform(img, cv2.DIST_L2, 5)
+#     # threshold to obtain sure foreground
+#     _, fg = cv2.threshold(dist, 0.3 * dist.max(), 255, 0)
+#     fg = np.uint8(fg)
+#     # sure background
+#     kernel = np.ones((3,3), np.uint8)
+#     bg = cv2.dilate(img, kernel, iterations=3)
+#     # markers
+#     _, markers = cv2.connectedComponents(fg)
+#     markers = markers + 1
+#     markers[bg == 0] = 0  # background should be 0 for watershed
+
+#     # prepare color image for watershed
+#     h, w = img.shape
+#     color = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+#     try:
+#         markers = cv2.watershed(color, markers)
+#     except Exception:
+#         return []
+
+#     # regions >1 correspond to unique markers
+#     boxes = []
+#     for m in np.unique(markers):
+#         if m <= 1:
+#             continue
+#         mask = (markers == m).astype(np.uint8)
+#         cnts, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#         if not cnts:
+#             continue
+#         x, y, w_box, h_box = cv2.boundingRect(cnts[0])
+#         boxes.append((x_offset + x, y, w_box, h_box))
+
+#     # keep boxes sorted left-to-right
+#     boxes = sorted(boxes, key=lambda b: b[0])
+#     # if nothing sensible, return empty
+#     if len(boxes) <= 1:
+#         return []
+#     return boxes
+
+# # -------------------------
+# # NMS for small boxes
+# # -------------------------
+# def non_max_suppression_boxes(boxes: List[Tuple[int,int,int,int]], iou_thresh: float = 0.15):
+#     """
+#     Removes nested or heavily overlapping boxes. Returns filtered boxes.
+#     Boxes are (x,y,w,h).
+#     """
+#     if not boxes:
+#         return []
+#     arr = np.array(boxes).astype(np.float32)
+#     x1 = arr[:,0]
+#     y1 = arr[:,1]
+#     x2 = arr[:,0] + arr[:,2]
+#     y2 = arr[:,1] + arr[:,3]
+#     areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+#     order = x1.argsort()  # left to right order
+
+#     keep = []
+#     used = np.zeros(len(boxes), dtype=np.bool_)
+#     for i in order:
+#         if used[i]:
+#             continue
+#         keep.append(tuple(arr[i].astype(int)))
+#         for j in range(len(boxes)):
+#             if used[j] or j == i:
+#                 continue
+#             # compute IoU
+#             xx1 = max(x1[i], x1[j])
+#             yy1 = max(y1[i], y1[j])
+#             xx2 = min(x2[i], x2[j])
+#             yy2 = min(y2[i], y2[j])
+#             w_int = max(0.0, xx2 - xx1 + 1)
+#             h_int = max(0.0, yy2 - yy1 + 1)
+#             inter = w_int * h_int
+#             union = areas[i] + areas[j] - inter
+#             if union <= 0:
+#                 continue
+#             iou = inter / union
+#             if iou > iou_thresh:
+#                 # mark smaller one as used
+#                 if areas[i] >= areas[j]:
+#                     used[j] = True
+#                 else:
+#                     used[i] = True
+#     return keep
 
 # -------------------------
 # Visualization helper
 # -------------------------
-def draw_boxes(img: np.ndarray, entries: List[Dict], color=(0,255,0), thickness=1):
-    """
-    Draw bounding boxes and index on a color image copy.
-    Returns annotated image (BGR).
-    """
-    if img.ndim == 2:
-        out = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-    else:
-        out = img.copy()
-    for i, e in enumerate(entries):
-        x,y,w,h = e["bbox"]
-        cv2.rectangle(out, (x,y), (x+w, y+h), color, thickness)
-        cx = e["center_x"]
-        cv2.putText(out, str(i), (x, max(y-3,0)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
-    return out
+# def draw_boxes(img: np.ndarray, entries: List[Dict], color=(0,255,0), thickness=1):
+#     """
+#     Draw bounding boxes and index on a color image copy.
+#     Returns annotated image (BGR).
+#     """
+#     if img.ndim == 2:
+#         out = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+#     else:
+#         out = img.copy()
+#     for i, e in enumerate(entries):
+#         x,y,w,h = e["bbox"]
+#         cv2.rectangle(out, (x,y), (x+w, y+h), color, thickness)
+#         cx = e["center_x"]
+#         cv2.putText(out, str(i), (x, max(y-3,0)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
+#     return out
 
 
-def upscale_image(img, factor):
-    if factor <= 1:
-        return img
-    h, w = img.shape[:2]
-    return cv2.resize(img, (w * factor, h * factor))
+# def upscale_image(img, factor):
+#     if factor <= 1:
+#         return img
+#     h, w = img.shape[:2]
+#     return cv2.resize(img, (w * factor, h * factor))
 
 # -------------------------
 # Preprocess for classifier
 # -------------------------
-def preprocess_for_model(crop: np.ndarray, target_size: int = 28, pad: int = 2):
-    """
-    Resize crop to target_size x target_size keeping aspect ratio, center by mass.
-    Returns normalized float32 array in range [0,1] with foreground=1.
-    """
-    # crop is grayscale
-    h, w = crop.shape
-    # threshold to get binary for bbox of ink
-    _, b = cv2.threshold(crop, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    ys, xs = np.where(b < 255)
-    if ys.size > 0:
-        minx, maxx = xs.min(), xs.max()
-        miny, maxy = ys.min(), ys.max()
-        roi = crop[miny:maxy+1, minx:maxx+1]
-    else:
-        roi = crop
+# def preprocess_for_model(crop: np.ndarray, target_size: int = 28, pad: int = 2):
+#     """
+#     Resize crop to target_size x target_size keeping aspect ratio, center by mass.
+#     Returns normalized float32 array in range [0,1] with foreground=1.
+#     """
+#     # crop is grayscale
+#     h, w = crop.shape
+#     # threshold to get binary for bbox of ink
+#     _, b = cv2.threshold(crop, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+#     ys, xs = np.where(b < 255)
+#     if ys.size > 0:
+#         minx, maxx = xs.min(), xs.max()
+#         miny, maxy = ys.min(), ys.max()
+#         roi = crop[miny:maxy+1, minx:maxx+1]
+#     else:
+#         roi = crop
 
-    # scale preserving aspect ratio
-    h2, w2 = roi.shape
-    scale = (target_size - pad*2) / max(h2, w2)
-    new_w = max(1, int(w2 * scale))
-    new_h = max(1, int(h2 * scale))
-    resized = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_AREA)
+#     # scale preserving aspect ratio
+#     h2, w2 = roi.shape
+#     scale = (target_size - pad*2) / max(h2, w2)
+#     new_w = max(1, int(w2 * scale))
+#     new_h = max(1, int(h2 * scale))
+#     resized = cv2.resize(roi, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
-    # place centered on white canvas
-    canvas = np.ones((target_size, target_size), dtype=np.uint8) * 255
-    x0 = (target_size - new_w) // 2
-    y0 = (target_size - new_h) // 2
-    canvas[y0:y0+new_h, x0:x0+new_w] = resized
+#     # place centered on white canvas
+#     canvas = np.ones((target_size, target_size), dtype=np.uint8) * 255
+#     x0 = (target_size - new_w) // 2
+#     y0 = (target_size - new_h) // 2
+#     canvas[y0:y0+new_h, x0:x0+new_w] = resized
 
-    arr = canvas.astype(np.float32)
-    arr = 1.0 - (arr / 255.0)  # foreground high
-    return arr
+#     arr = canvas.astype(np.float32)
+#     arr = 1.0 - (arr / 255.0)  # foreground high
+#     return arr
 
 # -------------------------
 # New character separation logic
 # -------------------------
-def remove_cell_boundaries(img: np.ndarray, boundary_thickness: int = 10) -> np.ndarray:
-    """
-    Remove black boundaries from cell image by setting border pixels to white.
+# def remove_cell_boundaries(img: np.ndarray, boundary_thickness: int = 10) -> np.ndarray:
+#     """
+#     Remove black boundaries from cell image by setting border pixels to white.
 
-    Args:
-        img: Grayscale cell image
-        boundary_thickness: Number of pixels to remove from each border
+#     Args:
+#         img: Grayscale cell image
+#         boundary_thickness: Number of pixels to remove from each border
 
-    Returns:
-        Image with boundaries removed
-    """
-    result = img.copy()
-    h, w = result.shape
+#     Returns:
+#         Image with boundaries removed
+#     """
+#     result = img.copy()
+#     h, w = result.shape
 
-    # Set border pixels to white (255)
-    result[:boundary_thickness, :] = 255  # Top
-    result[-boundary_thickness+3:, :] = 255  # Bottom
-    result[:, :boundary_thickness] = 255  # Left
-    result[:, -boundary_thickness:] = 255  # Right
+#     # Set border pixels to white (255)
+#     result[:boundary_thickness, :] = 255  # Top
+#     result[-boundary_thickness+3:, :] = 255  # Bottom
+#     result[:, :boundary_thickness] = 255  # Left
+#     result[:, -boundary_thickness:] = 255  # Right
     
-    # save result for debug
-    # random_int = random.randint(0, 1000000)
-    # cv2.imwrite(f"results/cell_no_boundaries_{random_int}.png", result)
+#     # save result for debug
+#     # random_int = random.randint(0, 1000000)
+#     # cv2.imwrite(f"results/cell_no_boundaries_{random_int}.png", result)
 
-    return result
+#     return result
 
 
 
-def find_top_character_profile(img_float: np.ndarray, top_fraction: float = 0.5, threshold: float = 0.5):
-    """
-    Scan the top `top_fraction` of the image to detect, for each column, 
-    the first row where intensity > threshold.
 
-    Args:
-        img_float: 2D float array, range [0,1].
-        top_fraction: fraction of rows from the top to scan (e.g., 0.3 = top 30%).
-        threshold: intensity threshold that defines "character ink".
+# LEAVE THIS 
+# def find_top_character_profile(img_float: np.ndarray, top_fraction: float = 0.5, threshold: float = 0.5):
+#     """
+#     Scan the top `top_fraction` of the image to detect, for each column, 
+#     the first row where intensity > threshold.
 
-    Returns:
-        fin_character: 1D float array of length W, normalized in [0,1]
-                       (1 = top, 0 = bottom, 0 if no ink found).
-    """
-    
-    # plt.figure(figsize=(12, 8))
-    # plt.subplot(2, 2, 1)
-    # plt.imshow(img_float, cmap='gray')
-    # cv2.imwrite("results/img_float.png", img_float)
-    H, W = img_float.shape
-    max_depth = int(H * top_fraction)
-    max_depth_top = int(H * top_fraction)
-    print(f"max_depth: {max_depth}")
+#     Args:
+#         img_float: 2D float array, range [0,1].
+#         top_fraction: fraction of rows from the top to scan (e.g., 0.3 = top 30%).
+#         threshold: intensity threshold that defines "character ink".
+
+#     Returns:
+#         fin_character: 1D float array of length W, normalized in [0,1]
+#                        (1 = top, 0 = bottom, 0 if no ink found).
+#     """
+
+#     H, W = img_float.shape
+#     max_depth = int(H * top_fraction)
+#     max_depth_top = int(H * top_fraction)
     
     
-    fin_character = np.array([-1]*W)# each element = row index where ink starts (0 if none)
+#     fin_character = np.array([-1]*W)# each element = row index where ink starts (0 if none)
 
-    for row_idx in range(max_depth):
-        row = img_float[row_idx, :]
-        for i in range(len(row)):
-            if row[i] > threshold and fin_character[i] == -1:
-                fin_character[i] =row_idx
+#     for row_idx in range(max_depth):
+#         row = img_float[row_idx, :]
+#         for i in range(len(row)):
+#             if row[i] > threshold and fin_character[i] == -1:
+#                 fin_character[i] =row_idx
                 
         
-        # ink_mask = row > threshold  # columns where ink appears at this row
-        # for i in range(len(ink_mask)):
-        #     if ink_mask[i] and fin_character[i] == -1:
-                
-        #         fin_character[i] = row_idx + 1
-        # print(f"Current fin_character: {fin_character}")
-        # We only set the position if it hasn’t been set before (==0)
-        # unset = fin_character == 0
-        # fin_character[unset & ink_mask] = row_idx + 1  # +1 avoids confusion with 0 (meaning “not found yet”)
-        # fin_character = np.zeros(W, dtype=float)  # stores the *row index* where ink starts
-        # print(f"Fin character: {fin_character}")
-        # Normalize: convert row index → vertical scale [0,1]
-        # (top=1.0, bottom=0.0)
-        # Note: if no ink found in a column, fin_character[col]=0 → stays 0
-        # fin_character = np.clip((max_depth - fin_character) / max_depth, 0, 1)
-    fin_character_top = np.clip((H - fin_character) / H, 0.5, 1)
+       
+#     fin_character_top = np.clip((H - fin_character) / H, 0.5, 1)
 
-    # print(f"Fin character top: {fin_character_top}")
-    return fin_character_top
+#     return fin_character_top
 
 
 
@@ -560,185 +524,121 @@ def calculate_column_intensity(img: np.ndarray, number=1) -> np.ndarray:
 
     output_path = f"results/inspec_{number}.png"
     plt.savefig(output_path)
-    print(f"Saved visualization to {output_path}")
+    # print(f"Saved visualization to {output_path}")
 
     return column_intensities
 
-def calculate_column_intensity_top_bottom(img: np.ndarray,
-                                          top_frac: float = 0.30,
-                                          bottom_frac: float = 0.30,
-                                          ) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Calculate column intensities for the top and bottom fractions of the image,
-    plot them (with mean lines), and return the two column-intensity arrays.
-
-    Args:
-        img: Grayscale image (HxW) with values in [0,255] or [0,1].
-        top_frac: fraction of image height to take from the top (default 0.30).
-        bottom_frac: fraction of image height to take from the bottom (default 0.30).
-        save_path: where to save the visualization.
-
-    Returns:
-        (column_intensity_top, column_intensity_bottom) — each is a 1D np.ndarray of length W,
-        normalized to [0,1] where larger values indicate darker ink (inverted intensity).
-    """ 
-    random_int=random.randint(0, 1000000)  
-    save_path: str = f"results/inspect_top_bottom_{random_int}.png"
-    import numpy as np
-    import matplotlib.pyplot as plt
-
-    # Convert to float and normalize to 0-1 range
-    img_float = img.astype(np.float32) / 255.0
-    cv2.imwrite(f"results/img_float_{random_int}.png", img)
-    
-    print(f"Image float shape is here: {img_float.shape}")
-    max_depth = 0.3 
-    
-    # convert to 3 np arrays one for top 30% fo rows and one for bottom 30% of rows and one for middle 40% of rows
-    h, w = img_float.shape
-    top_30 = img_float[:int(h*0.3), :]
-    bottom_30=img_float[-int(h*0.3):, :]
-    middle_40 = img_float[int(h*0.3):int(h*0.7), :]
-
-    # bottom_30=find_top_character_profile(img_float)
-    middle_40 = img_float[int(h*0.3):int(h*0.7), :]
-    
-    
-    
-
-    # Calculate average intensity per column (inverted: dark = high)
-    inverted = 1.0 - img_float
-    # column_intensities = np.mean(inverted, axis=0)
-    column_intensities = np.mean(inverted, axis=0)   # shape (w,)
-
-    # top/bottom crops
-    top_region = img_float[: int(h * 0.5), :]           # shape (h_top, w)
-    top_upper_region = img_float[: int(h* 0.3), :]     # shape (h_top_upper, w)
-    avg_top_region = np.mean(top_region, axis=0)       # shape (w,)
-    avg_top_upper_region = np.mean(top_upper_region, axis=0)  # shape (w,)
-    top_region_avg = (avg_top_region + avg_top_upper_region) / 2  # shape (w,)
-
-    # bottom uses inverted (so 'ink' is positive)
-    bottom_region = inverted[-int(h * 0.5):, :]         # shape (h_bottom, w)
-    bottom_lower_region = inverted[-int(h * 0.3):, :]   # shape (h_bottom_lower, w)
-    avg_bottom_region = np.mean(bottom_region, axis=0)           # shape (w,)
-    avg_bottom_lower_region = np.mean(bottom_lower_region, axis=0)  # shape (w,)
-    bottom_region_avg = (avg_bottom_region + avg_bottom_lower_region) / 2  # shape (w,)
-
-    # --- IMPORTANT FIX: do NOT take mean again across axis=0 if you want a per-column signal ---
-    column_intensity_top = top_region_avg        # shape (w,)
-    column_intensity_bottom = bottom_region_avg  # shape (w,)
-
-    # scalar means (optional diagnostics)
-    mean_top = float(np.mean(column_intensity_top))
-    mean_bottom = float(np.mean(column_intensity_bottom))
-    mean_full = float(np.mean(column_intensities))
-
-
-    # --- Plotting ---
-    plt.figure(figsize=(14, 8))
-
-    # show original image on top-left
-    plt.subplot(2, 2, 1)
-    plt.imshow(img_float, cmap='gray', aspect='auto')
-    plt.title('Original Image (normalized)')
-    plt.axis('off')
-
-    # show the top-region as an image for context
-    plt.subplot(2, 2, 2)
-    plt.imshow(top_region, cmap='gray', aspect='auto')
-    plt.title(f'Top region')
-    plt.axis('off')
-
-    # main column intensity plot (bottom-left area of the grid)
-    plt.subplot(2, 1, 2)
-    x = np.arange(w)
-    plt.plot(x, column_intensity_top, label='Top 30% Column Intensity', linewidth=1.2)
-    plt.plot(x, column_intensity_bottom, label='Bottom 30% Column Intensity', linewidth=1.2)
-
-    # mean lines (dark yellow for overall mean, dashed)
-    plt.axhline(y=mean_full, color='#b58900', linestyle='-', linewidth=2,
-                label=f'Overall Mean = {mean_full:.3f}')
-    # also show top and bottom means as thinner dashed lines for clarity
-    plt.axhline(y=mean_top, color='C0', linestyle='--', linewidth=1, label=f'Top Mean = {mean_top:.3f}')
-    plt.axhline(y=mean_bottom, color='C1', linestyle='--', linewidth=1, label=f'Bottom Mean = {mean_bottom:.3f}')
-
-    plt.title('Column Intensities (Top vs Bottom)')
-    plt.xlabel('Column index')
-    plt.ylabel('Average inverted intensity (dark = high)')
-    plt.legend(loc='upper right', fontsize='small')
-    plt.tight_layout()
-
-    # save and report
-    plt.savefig(save_path, dpi=150)
-    plt.close()
-    print(f"Saved visualization to: {save_path}")
-
-    return column_intensity_top, column_intensity_bottom
-
-
-
-# def find_character_boundaries(column_intensities: np.ndarray, threshold: float = 0.2,
-#                              min_char_width: int = 5, min_gap_width: int = 2) -> List[Tuple[int, int]]:
+# def calculate_column_intensity_top_bottom(img: np.ndarray,
+#                                           top_frac: float = 0.30,
+#                                           bottom_frac: float = 0.30,
+#                                           ) -> Tuple[np.ndarray, np.ndarray]:
 #     """
-#     Find character boundaries based on column intensity patterns.
+#     Calculate column intensities for the top and bottom fractions of the image,
+#     plot them (with mean lines), and return the two column-intensity arrays.
 
 #     Args:
-#         column_intensities: Array of column intensities
-#         threshold: Threshold below which a column is considered a separator
-#         min_char_width: Minimum width for a valid character
-#         min_gap_width: Minimum width for a valid gap between characters
+#         img: Grayscale image (HxW) with values in [0,255] or [0,1].
+#         top_frac: fraction of image height to take from the top (default 0.30).
+#         bottom_frac: fraction of image height to take from the bottom (default 0.30).
+#         save_path: where to save the visualization.
 
 #     Returns:
-#         List of (start, end) tuples for each character region
-#     """
-#     # Find columns that are above threshold (contain character content)
-#     above_threshold = column_intensities > threshold
+#         (column_intensity_top, column_intensity_bottom) — each is a 1D np.ndarray of length W,
+#         normalized to [0,1] where larger values indicate darker ink (inverted intensity).
+#     """ 
+#     random_int=random.randint(0, 1000000)  
+#     save_path: str = f"results/inspect_top_bottom_{random_int}.png"
+#     import numpy as np
+#     import matplotlib.pyplot as plt
 
-#     # Find transitions from low to high intensity (character starts)
-#     # and from high to low intensity (character ends)
-#     boundaries = []
-#     in_character = False
-#     start_col = 0
+#     # Convert to float and normalize to 0-1 range
+#     img_float = img.astype(np.float32) / 255.0
+#     cv2.imwrite(f"results/img_float_{random_int}.png", img)
+    
+#     # print(f"Image float shape is here: {img_float.shape}")
+#     max_depth = 0.3 
+    
+#     # convert to 3 np arrays one for top 30% fo rows and one for bottom 30% of rows and one for middle 40% of rows
+#     h, w = img_float.shape
+#     top_30 = img_float[:int(h*0.3), :]
+#     bottom_30=img_float[-int(h*0.3):, :]
+#     middle_40 = img_float[int(h*0.3):int(h*0.7), :]
 
-#     for i, is_content in enumerate(above_threshold):
-#         if not in_character and is_content:
-#             # Start of character
-#             start_col = i
-#             in_character = True
-#         elif in_character and not is_content:
-#             # End of character
-#             char_width = i - start_col
-#             if char_width >= min_char_width:
-#                 boundaries.append((start_col, i))
-#             in_character = False
+#     # bottom_30=find_top_character_profile(img_float)
+#     middle_40 = img_float[int(h*0.3):int(h*0.7), :]
+    
+    
+    
 
-#     # Handle case where character extends to end of image
-#     if in_character:
-#         char_width = len(column_intensities) - start_col
-#         if char_width >= min_char_width:
-#             boundaries.append((start_col, len(column_intensities)))
+#     # Calculate average intensity per column (inverted: dark = high)
+#     inverted = 1.0 - img_float
+#     # column_intensities = np.mean(inverted, axis=0)
+#     column_intensities = np.mean(inverted, axis=0)   # shape (w,)
 
-#     # Merge boundaries that are too close together (likely same character)
-#     if len(boundaries) > 1:
-#         merged_boundaries = []
-#         current_start, current_end = boundaries[0]
+#     # top/bottom crops
+#     top_region = img_float[: int(h * 0.5), :]           # shape (h_top, w)
+#     top_upper_region = img_float[: int(h* 0.3), :]     # shape (h_top_upper, w)
+#     avg_top_region = np.mean(top_region, axis=0)       # shape (w,)
+#     avg_top_upper_region = np.mean(top_upper_region, axis=0)  # shape (w,)
+#     top_region_avg = (avg_top_region + avg_top_upper_region) / 2  # shape (w,)
 
-#         for start, end in boundaries[1:]:
-#             gap_width = start - current_end
-#             if gap_width < min_gap_width:
-#                 # Merge with current character
-#                 current_end = end
-#             else:
-#                 # Save current character and start new one
-#                 merged_boundaries.append((current_start, current_end))
-#                 current_start, current_end = start, end
+#     # bottom uses inverted (so 'ink' is positive)
+#     bottom_region = inverted[-int(h * 0.5):, :]         # shape (h_bottom, w)
+#     bottom_lower_region = inverted[-int(h * 0.3):, :]   # shape (h_bottom_lower, w)
+#     avg_bottom_region = np.mean(bottom_region, axis=0)           # shape (w,)
+#     avg_bottom_lower_region = np.mean(bottom_lower_region, axis=0)  # shape (w,)
+#     bottom_region_avg = (avg_bottom_region + avg_bottom_lower_region) / 2  # shape (w,)
 
-#         # Add the last character
-#         merged_boundaries.append((current_start, current_end))
-#         boundaries = merged_boundaries
+#     # --- IMPORTANT FIX: do NOT take mean again across axis=0 if you want a per-column signal ---
+#     column_intensity_top = top_region_avg        # shape (w,)
+#     column_intensity_bottom = bottom_region_avg  # shape (w,)
 
-#     return boundaries
+#     # scalar means (optional diagnostics)
+#     mean_top = float(np.mean(column_intensity_top))
+#     mean_bottom = float(np.mean(column_intensity_bottom))
+#     mean_full = float(np.mean(column_intensities))
+
+
+#     # --- Plotting ---
+#     plt.figure(figsize=(14, 8))
+
+#     # show original image on top-left
+#     plt.subplot(2, 2, 1)
+#     plt.imshow(img_float, cmap='gray', aspect='auto')
+#     plt.title('Original Image (normalized)')
+#     plt.axis('off')
+
+#     # show the top-region as an image for context
+#     plt.subplot(2, 2, 2)
+#     plt.imshow(top_region, cmap='gray', aspect='auto')
+#     plt.title(f'Top region')
+#     plt.axis('off')
+
+#     # main column intensity plot (bottom-left area of the grid)
+#     plt.subplot(2, 1, 2)
+#     x = np.arange(w)
+#     plt.plot(x, column_intensity_top, label='Top 30% Column Intensity', linewidth=1.2)
+#     plt.plot(x, column_intensity_bottom, label='Bottom 30% Column Intensity', linewidth=1.2)
+
+#     # mean lines (dark yellow for overall mean, dashed)
+#     plt.axhline(y=mean_full, color='#b58900', linestyle='-', linewidth=2,
+#                 label=f'Overall Mean = {mean_full:.3f}')
+#     # also show top and bottom means as thinner dashed lines for clarity
+#     plt.axhline(y=mean_top, color='C0', linestyle='--', linewidth=1, label=f'Top Mean = {mean_top:.3f}')
+#     plt.axhline(y=mean_bottom, color='C1', linestyle='--', linewidth=1, label=f'Bottom Mean = {mean_bottom:.3f}')
+
+#     plt.title('Column Intensities (Top vs Bottom)')
+#     plt.xlabel('Column index')
+#     plt.ylabel('Average inverted intensity (dark = high)')
+#     plt.legend(loc='upper right', fontsize='small')
+#     plt.tight_layout()
+
+#     # save and report
+#     plt.savefig(save_path, dpi=150)
+#     plt.close()
+#     print(f"Saved visualization to: {save_path}")
+
+#     return column_intensity_top, column_intensity_bottom
 
 
 def find_character_boundaries_by_columns(
@@ -768,34 +668,10 @@ def find_character_boundaries_by_columns(
         - states: optional 1D boolean array of length = n_columns (True = in_character).
     """
     
-    # baseline = 0.01
-    # col = np.asarray(column_intensities).astype(float).ravel()
-    # n = col.size
-    # if n == 0:
-    #     return [], 0, (np.array([], dtype=bool) if return_states else None)
-
-    # # Normalize to [0,1] if values appear to be in a larger scale (e.g., 0..255)
-    # if col.max() > 1.0:
-    #     col = col / float(col.max())
-
-    # # Per-column boolean: True if column likely contains ink/character
-    # # intensity_df = pd.DataFrame(column_intensities, columns=['intensity'])
-    # # states = intensity_df['intensity'] > threshold
-    # # mean_intensity = np.mean(column_intensities)
    
-    
-    # # mean_intensity = np.mean(column_intensities)
-    # mean_intensity = np.mean(column_intensities) / 2
-    # print(f"Mean value is: {mean_intensity}")
-
-    # states = col > threshold
-    # print(f"COL: {col}")
-    # print(f"States: {states}")
-    
-        # --- validate / normalize inputs ---
         
     h, w = img.shape
-    print(f"Image shape: {img.shape}")
+    # print(f"Image shape: {img.shape}")
     col = np.asarray(column_intensities).astype(float).ravel()
     n = col.size
     if n == 0:
@@ -830,19 +706,16 @@ def find_character_boundaries_by_columns(
     blackness = 1 - (top10_dark / 255.0)
 
     avg_top10_blackness = np.mean(blackness) / boundary # we use only half
-    print(f"MAXES BLACKS: {avg_top10_blackness}")
+    # print(f"MAXES BLACKS: {avg_top10_blackness}")
                 
          # calculate average col intensity
        
     cc=col[95:106]
-    print(cc)
     half_avg_top10 = sum(cc)/len(cc)
     
-    print(f"Half average 10 blackness: {half_avg_top10}")
-    print(f"Average blackness: {avg_top10_blackness}")
-                
-    # blackness: 1.0 for black, 0.0 for white
-    # --- determine per-column states according to your rule ---
+    # print(f"Half average 10 blackness: {half_avg_top10}")
+    # print(f"Average blackness: {avg_top10_blackness}")
+
     states = np.zeros(w, dtype=bool)
 
     for c in range(w):
@@ -853,13 +726,13 @@ def find_character_boundaries_by_columns(
         
             cur_arr = inverted[h_1:h_2, c]
             if np.any(cur_arr >= avg_top10_blackness):
-                print(np.max(cur_arr))
+                # print(np.max(cur_arr))
                 
                 states[c] = True
-                print("FOUND CONTENT")
+                # print("FOUND CONTENT")
             else:
                 states[c] = False
-            print("FOUND SPACE")
+            # print("FOUND SPACE")
         else:
             # column intensity >= half_avg_top10 => likely ink present
             states[c] = True
@@ -867,7 +740,7 @@ def find_character_boundaries_by_columns(
     in_character = False
     run_start = 0
     
-    print(states)
+    # print(states)
 
     # print(f"Half average 10 blackness: {half_avg_top10}")
     
@@ -880,9 +753,9 @@ def find_character_boundaries_by_columns(
                 pass
                 # boundaries.append((small_punc_character[0], small_punc_character[1]))
             else:
-                print(f"End of small punc character at column {i}")
+                # print(f"End of small punc character at column {i}")
                 boundaries.append((small_punc_character[0], small_punc_character[9]))
-                print(f"Boundaries: {boundaries}")
+                # print(f"Boundaries: {boundaries}")
                 small_punc_character = None
                 in_character = False
     
@@ -890,18 +763,10 @@ def find_character_boundaries_by_columns(
         
             if is_content:
                 if i - run_start >= 12:
-                    print("A bit big gap")
+                    pass
+                    # print("A bit big gap")
                     
-                #     # look for closest light columns
-                #     cols = col[i-2:i+2]
-                #     lightest_col_index = np.argmin(cols) + (i-2)
-                #     # finish character
-                #     run_end = lightest_col_index 
-                #     run_width = run_end - run_start
-                #     if run_width >= min_char_width:
-                #         boundaries.append((run_start, run_end))
-                #     # reset
-                #     in_character = False
+               
                 if not in_character:
                     # start a new run
                     run_start = i
@@ -913,8 +778,7 @@ def find_character_boundaries_by_columns(
                     # end of run at column i (exclusive)
                     run_end = i
                     run_width = run_end - run_start
-                    # print(f"run_width: {run_width}")
-                    # print(f"min_char_width: {min_char_width}")
+
                     if run_width >= min_char_width:
                         boundaries.append((run_start, run_end))
                     # reset
@@ -925,16 +789,15 @@ def find_character_boundaries_by_columns(
                     if next_growth > 0.02 and next_growth < 0.05:
                         max_value = col[i+1:i+10].max()
                         if max_value <0.05:
-                            print(f"Found content at column {i} with value {next_growth}")
+                            # print(f"Found content at column {i} with value {next_growth}")
 
-                            print(f"FOUND DOT")
+                            # print(f"FOUND DOT")
                             small_punc_character = range(i, i+10)
-                            print(f"small_punc_character: {len(small_punc_character)}")
+                            # print(f"small_punc_character: {len(small_punc_character)}")
                             
                             
                     
 
-    # if last run reaches the last column
     if in_character:
         run_end = n
         run_width = run_end - run_start
@@ -959,51 +822,50 @@ def find_character_boundaries_by_columns(
     count = len(boundaries)
     return boundaries, count, (states if return_states else None)
 
-def check_vertical_line_clear(img: np.ndarray, col: int) -> bool:
-    """
-    Check if a vertical line at given column has no black pixels.
+# def check_vertical_line_clear(img: np.ndarray, col: int) -> bool:
+#     """
+#     Check if a vertical line at given column has no black pixels.
 
-    Args:
-        img: Grayscale image
-        col: Column index to check
+#     Args:
+#         img: Grayscale image
+#         col: Column index to check
 
-    Returns:
-        True if line is clear (no black pixels), False otherwise
-    """
-    if col < 0 or col >= img.shape[1]:
-        return False
+#     Returns:
+#         True if line is clear (no black pixels), False otherwise
+#     """
+#     if col < 0 or col >= img.shape[1]:
+#         return False
 
-    # Check if all pixels in the column are light (above threshold)
-    column_pixels = img[:, col]
-    # Consider pixels below 128 as "black" content
-    return np.all(column_pixels > 128)
+#     # Check if all pixels in the column are light (above threshold)
+#     column_pixels = img[:, col]
+#     # Consider pixels below 128 as "black" content
+#     return np.all(column_pixels > 128)
 
-def crop_character_vertically(char_img: np.ndarray) -> np.ndarray:
-    """
-    Crop character image vertically to remove empty rows at top and bottom.
+# def crop_character_vertically(char_img: np.ndarray) -> np.ndarray:
+#     """
+#     Crop character image vertically to remove empty rows at top and bottom.
 
-    Args:
-        char_img: Character image
+#     Args:
+#         char_img: Character image
 
-    Returns:
-        Vertically cropped character image
-    """
-    # Find rows with content (dark pixels)
-    row_intensities = np.mean(char_img.astype(np.float32), axis=1)
-    print(f"Row intensities: {row_intensities}")
+#     Returns:
+#         Vertically cropped character image
+#     """
+#     # Find rows with content (dark pixels)
+#     row_intensities = np.mean(char_img.astype(np.float32), axis=1)
     
-    content_rows = row_intensities < 200  # Rows with some dark content
+#     content_rows = row_intensities < 200  # Rows with some dark content
 
-    if not np.any(content_rows):
-        return char_img  # No content found, return original
+#     if not np.any(content_rows):
+#         return char_img  # No content found, return original
 
-    # Find first and last rows with content
-    content_indices = np.where(content_rows)[0]
-    top_row = content_indices[0]
-    bottom_row = content_indices[-1] + 1
+#     # Find first and last rows with content
+#     content_indices = np.where(content_rows)[0]
+#     top_row = content_indices[0]
+#     bottom_row = content_indices[-1] + 1
     
 
-    return char_img[top_row-2:bottom_row+2, :]
+#     return char_img[top_row-2:bottom_row+2, :]
 
 
 
@@ -1198,15 +1060,7 @@ def pad_or_crop_to_target(
     # --- Add symmetric white padding if smaller ---
     pad_left = max((target_w - w) // 2, 0)
     pad_right = max(target_w - w - pad_left, 0)
-    # pad_top = max((target_h - h) // 2, 0)
-    # pad_bottom = max(target_h - h - pad_top, 0)
-    # pad_left = 10
-    # pad_right = 10
-    # pad_top = 10
-    # pad_bottom = 10
-    
-    # pad_left = 
-    # pad_right = 10
+
     pad_top = 0
     pad_bottom = 0
     padded = cv2.copyMakeBorder(
@@ -1242,28 +1096,11 @@ def separate_characters_advanced(img_cell: np.ndarray,
         gray = cv2.cvtColor(img_cell, cv2.COLOR_BGR2GRAY)
     else:
         gray = img_cell.copy()
-    print("Gray shape is: ", gray.shape)
     gray, removed_cols, removed_rows = remove_almost_black_borders(gray)
 
-    if debug:
-        print(f"Original image shape: {gray.shape}")
-        print(f"Original image intensity range: {gray.min()} - {gray.max()}")
 
-    # Remove cell boundaries
-    # gray_clean = remove_cell_boundaries(gray)
-    
-    # save gray_clean for debug
-    random_int = random.randint(0, 1000000)
-    cv2.imwrite(f"results/cell_no_boundaries_{random_int}.png", gray)
-    
-    print(f"Shape of current image is: {gray.shape}")
-    
 
-    if debug:
-        print(f"After boundary removal, intensity range: {gray.min()} - {gray.max()}")
 
-    # blobs = extract_blobs(gray)
-    # print(f"Len of blobs is: {len(blobs)}")
     count = 2
     
     
@@ -1271,81 +1108,56 @@ def separate_characters_advanced(img_cell: np.ndarray,
     final_characters = []
     base_name = os.path.splitext(os.path.basename(cell_path))[0]
     count_blobs = 0
-    # for blob in blobs:
-        # print("Saving blob")
-        # out_float = pad_or_crop_to_target(blob, target_size=(80,20), bg_color=1.0)
-        # out_float = blob
-        # cv2.imwrite(f"blobs/{base_name}_blob_{count_blobs}.png", out_float)
-        # blobs_2 = extract_blobs(blob)
-        # print(f"Len of blobs_2 is: {len(blobs_2)}")
-        # if count == 1:
-        # print(f"Blob shape is: {blob.shape}")
     column_intensities=calculate_column_intensity(gray, count)
-    print(f"COLUMN INTENSITIES: {column_intensities}")
+    # print(f"COLUMN INTENSITIES: {column_intensities}")
     char_boundaries, count, states = find_character_boundaries_by_columns(
             gray, column_intensities, min_char_width=2, min_gap_width=1, return_states=True, boundary = 2.5
         )
         # char_boundaries.extend(char_boundaries)
         
-    print(f"Found {len(char_boundaries)} potential character regions: {char_boundaries}")
-    print('PROCEED')
+    # print(f"Found {len(char_boundaries)} potential character regions: {char_boundaries}")
+    # print('PROCEED')
 
     character_images = []
     for i, (start_col, end_col) in enumerate(char_boundaries):
-        print(f"Processing region {i}: columns {start_col}-{end_col}")
+        # print(f"Processing region {i}: columns {start_col}-{end_col}")
 
         # Extract character region
         char_width = end_col - start_col
         if char_width >= min_char_width:
 
-            print(f"char_width: {char_width}")
+            # print(f": {char_width}")
             
             
             if end_col - start_col > 10:
                 end_col_o, start_col_o = end_col, start_col
                 added = False
-
-                print("Character is too wide, try to crop again")
+                # add here check that start_col >= 1 and end_col <= width
+                # if start_col < 1:
+                #     start_col = 1
+                # if end_col > gray.shape[1]-1 :
+                #     end_col = gray.shape[1]-1
+                # print("Character is too wide, try to crop again")
                 new_crop = gray[:, start_col-1:end_col+1]
                 char_boundaries, count, states = find_character_boundaries_by_columns(
                      new_crop, column_intensities, min_char_width=2, min_gap_width=1, return_states=True, boundary = 2
                 )
-                print(f"Found {len(char_boundaries)} potential character regions: {char_boundaries}")
+                # print(f"Found {len(char_boundaries)} potential character regions: {char_boundaries}")
                 
                 for i, (start_col, end_col) in enumerate(char_boundaries):
                     if end_col - start_col > 10:
-                        print("Character is still too wide, giving up")
+                        pass
+                        # print("Character is still too wide, giving up")
                     char_img = new_crop[:, start_col-1:end_col+1]
                     added = True
                     character_images.append(char_img)
                 if not added:
-                    print("ADDING ANYWAY")
-                    print(f"Start col: {start_col_o}, end col: {end_col_o}")
+                    # print("ADDING ANYWAY")
+                    # print(f"Start col: {start_col_o}, end col: {end_col_o}")
                     char_img = gray[:, start_col_o-1:end_col_o+1]
                     character_images.append(char_img)
                     
-                #     if end_col - start_col <= 10:
-                #         char_img = new_crop[:, start_col-1:end_col+1]
-                #         added = True
-                #         character_images.append(char_img)
-                #     else:
-                #         print("Character is too wide, try to crop again")
-                #         new_crop = gray[:, start_col-1:end_col+1]
-                #         char_boundaries, count, states = find_character_boundaries_by_columns(
-                #             new_crop, column_intensities, min_char_width=2, min_gap_width=1, return_states=True, boundary = 1
-                #         )
-                #         print(f"Found {len(char_boundaries)} potential character regions: {char_boundaries}")
-                #         for i, (start_col_e, end_col_e) in enumerate(char_boundaries):
-                #             if end_col_e - start_col_e <= 10:
-                #                 char_img = new_crop[:, start_col_e-1:end_col_e+1]
-                #                 character_images.append(char_img)
-                #                 print("Added")
-                #                 added = True
-                # if not added:
-                #     print("ADDING ANYWAY")
-                #     print(f"Start col: {start_col_o}, end col: {end_col_o}")
-                #     char_img = gray[:, start_col_o-1:end_col_o+1]
-                #     character_images.append(char_img)
+               
             
             else:   
             
@@ -1354,48 +1166,28 @@ def separate_characters_advanced(img_cell: np.ndarray,
             
             
 
-            # Crop vertically to remove empty space
-            # char_img_cropped = crop_character_vertically(char_img)
-            # print(f"char_img_cropped shape: {char_img_cropped.shape}")
-
-            # Only add if the cropped image has reasonable dimensions
-            # if char_img_cropped.shape[0] >= 2 and char_img_cropped.shape[1] >= 2:
-            #     character_images.append(char_img_cropped)
-            #     if debug:
-            #         print(f"  Added character {len(character_images)-1} with size {char_img_cropped.shape}")
-            # elif debug:
-            #     print(f"  Rejected: cropped size {char_img_cropped.shape} too small")
-        elif debug:
-            print(f"  Rejected: width {char_width} < minimum {min_char_width}")
-    print(f"Found {len(character_images)} characters in blob {count_blobs}")
+           
+        
+    # print(f"Found {len(character_images)} characters in blob {count_blobs}")
     # Get base filename without extension
     base_name = os.path.splitext(os.path.basename(cell_path))[0]
 
     final_characters.extend(character_images)
     # Save each character
     output_dir = "characters"
+    # ensure folder exists 
+    os.makedirs(output_dir, exist_ok=True)
     print(f"Saving {len(character_images)} characters to {output_dir}")
     for i, char_img in enumerate(character_images):
         output_path = os.path.join(output_dir, f"{base_name}_char_{i:02d}.png")
         out_float = pad_or_crop_to_target(char_img, target_size=(80,20), bg_color=1.0)
         # out_float = char_img
         cv2.imwrite(output_path, out_float)
-        print(f"Saved character {i} to {output_path} (size: {out_float.shape})")
+        # print(f"Saved character {i} to {output_path} (size: {out_float.shape})")
         # print(f"Saved character {i} to {output_path} (size: {char_img.shape})")
         count += 1
     count_blobs += 1
     
-
-    
-    # Calculate column intensities
-    # column_intensities = calculate_column_intensity(gray)
-    # print(f"Intensities: {column_intensities}")
-
-    # if debug:
-    #     print(f"Column intensities shape: {column_intensities.shape}")
-    #     print(f"Column intensities range: {column_intensities.min():.3f} - {column_intensities.max():.3f}")
-    #     print(f"Mean column intensity: {column_intensities.mean():.3f}")
-    #     print(f"Columns above threshold ({intensity_threshold}): {np.sum(column_intensities > intensity_threshold)}")
 
     return final_characters
 
@@ -1420,13 +1212,6 @@ def process_single_cell_and_save(cell_path: str, output_dir: str = "results",
         print(f"Error: Could not load image {cell_path}")
         return
 
-    # img = upscale_image(img, 4)
-    # img = mask_pixels(img, "results/masked.png")
-    # print(f"Processing {cell_path}...")
-    
-
-    # Try different thresholds to find characters
-    # thresholds = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
     thresholds=[0.1]
     best_result = []
     best_threshold = 0.2
@@ -1442,7 +1227,7 @@ def process_single_cell_and_save(cell_path: str, output_dir: str = "results",
             print(f"Threshold {threshold}: found {len(characters)} characters")
 
     characters = best_result
-    print(f"Using threshold {best_threshold}, found {len(characters)} characters")
+    # print(f"Using threshold {best_threshold}, found {len(characters)} characters")
 
     
 
@@ -1466,10 +1251,6 @@ def process_single_cell_main(cell_image_path: str = "cells_production/cell_r1_c1
     print("\nCharacter separation completed!")
     print("Results saved in 'results/' folder")
 
-# -------------------------
-# Example usage
-# -------------------------
-
 
 
 if __name__ == "__main__":
@@ -1484,38 +1265,8 @@ if __name__ == "__main__":
             cell_path = os.path.join(working_directory, filename)
             process_single_cell_main(cell_path)
     
-    # path="words_production/cell_r5_c1_blob_1_word_7.png"
-    # process_single_cell_and_save(path)
-    # blobs = extract_blobs(img)
-    # print(len(blobs))
-    
-    # calculate_column_intensity_top_bottom(img)
 
-    # Optionally test with multiple images for comparison
-    test_multiple = False
-    if test_multiple:
-        test_images = [
-            "cells_production/cell_r2_c1.png",  # This has good content
-            "cells_production/cell_r1_c1.png",   # This has content across many columns
-            "cells_production/cell_r10_c5.png",  # This has good content
-            "cells_production/cell_r0_c3.png"    # This has minimal content
-        ]
-
-        for img_path in test_images:
-            print(f"\n{'='*60}")
-            print(f"Testing: {img_path}")
-            print('='*60)
-
-            # Process single cell and save results
-            process_single_cell_and_save(img_path, debug=True)
-
-            # Also show the old segmentation for comparison
-            img = cv2.imread(img_path)
-            if img is not None:
-                entries = segment_cell(img)
-                print(f"Old method found {len(entries)} candidate symbols.")
-
-            print()  # Empty line for readability
+   
 
 
 

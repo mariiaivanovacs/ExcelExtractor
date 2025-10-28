@@ -10,7 +10,7 @@ import csv
 
 # ---------- Параметры ----------
 INPUT_PATH = "data/input/original.jpeg"   # <-- замените на путь к вашему изображению
-OUTPUT_DIR = "cells_out"
+OUTPUT_DIR = "cells_production"
 DEVELOPMENT_DIR = "steps_out"
 os.makedirs(OUTPUT_DIR, exist_ok=True) # to not to conflict
 
@@ -771,7 +771,7 @@ def group_and_visualize_nodes(
 
 
 def extract_table_cells_with_merge_detection(working_img, centroids_np, rows_pts, 
-                                              output_dir="cells_out", padding=2):
+                                              output_dir="cells_production", padding=2):
     """
     Extract cells from a table, detecting and handling merged cells that span multiple rows/columns.
     

@@ -128,11 +128,7 @@ def classify_text_type_final(all_texts, number_results, debug=False):
             meaningful_words += 1
         elif re.search(r'[a-zA-Zа-яА-Я]{3,}', cleaned) and len(cleaned) >= 5:  # 3+ letters in longer text
             meaningful_words += 1
-    
-    if debug:
-        print(f"Consistent numbers: {consistent_numbers}")
-        print(f"Valid number chars: {valid_number_chars}")
-        print(f"Meaningful words: {meaningful_words}")
+
     
     # Optimized decision logic based on your specific data patterns
 
@@ -178,10 +174,10 @@ def classify_text_type_final(all_texts, number_results, debug=False):
                 total_letters += 1
             total_chars += 1
 
-    if debug:
-        print(f"Pure number texts: {pure_number_texts}")
-        if total_chars > 0:
-            print(f"Overall digit ratio: {total_digits/total_chars:.2f}")
+    # if debug:
+    #     print(f"Pure number texts: {pure_number_texts}")
+    #     if total_chars > 0:
+    #         print(f"Overall digit ratio: {total_digits/total_chars:.2f}")
 
     # Final decision based on composition
     if pure_number_texts >= 2 and meaningful_words == 0:
@@ -200,56 +196,60 @@ def classify_text_type_final(all_texts, number_results, debug=False):
     else:
         return "TEXT"
 
+
+import csv
 def test_on_ground_truth():
-    """Test the enhanced OCR function against ground truth data"""
-    # Load ground truth data
-    ground_truth = {}
-    with open("data/input/dictionary.txt", "r") as f:
-        for line in f:
-            if "," in line:
-                filename, cell_type = line.strip().split(", ")
-                cell_type = cell_type.upper()
-                if cell_type == "NUMBER":
-                    cell_type = "NUMBER"
-                ground_truth[filename] = cell_type
+    """Test the enhanced OCR function against ground truth data
+    and save predictions to separate CSV files."""
     
-    print(f"Loaded {len(ground_truth)} ground truth samples")
-    print("="*60)
+    working_directory = "blobs"
+    output_dir = "data/csv"
+    os.makedirs(output_dir, exist_ok=True)
     
-    correct = 0
+    numbers_path = os.path.join(output_dir, "numbers_latest.csv")
+    others_path = os.path.join(output_dir, "others_latest.csv")
+    
+    # Initialize counters
     total = 0
-    errors = []
+    correct = 0
     
-    for filename, expected_type in ground_truth.items():
-        cell_path = os.path.join("cells_cleaned", filename)
-        if not os.path.exists(cell_path):
-            continue
-            
-        img = cv2.imread(cell_path)
-        if img is None:
-            continue
-            
-        predicted_type = detect_cell_type_image(img, debug=False)
-        total += 1
+    # Open both CSV files for writing
+    with open(numbers_path, "w", newline="") as f_num, open(others_path, "w", newline="") as f_oth:
+        num_writer = csv.writer(f_num)
+        oth_writer = csv.writer(f_oth)
         
-        if predicted_type == expected_type:
-            correct += 1
-            status = "✅ CORRECT"
-        else:
-            errors.append((filename, expected_type, predicted_type))
-            status = "❌ WRONG"
+        # Write headers
+        num_writer.writerow(["filename", "prediction"])
+        oth_writer.writerow(["filename", "prediction"])
         
-        print(f"{filename:20} | Expected: {expected_type:6} | Predicted: {predicted_type:6} | {status}")
+        for filename in os.listdir(working_directory):
+            cell_path = os.path.join(working_directory, filename)
+            if not filename.lower().endswith('.png'):
+                continue
+            if not os.path.exists(cell_path):
+                continue
+            
+            img = cv2.imread(cell_path)
+            if img is None:
+                continue
+            
+            total += 1
+            
+            predicted_type = detect_cell_type_image(img, debug=False)
+            # print(f"{filename:25}  Predicted: {predicted_type}")
+            
+            # Write to the appropriate CSV file
+            if predicted_type.upper() == "NUMBER":
+                num_writer.writerow([filename, predicted_type])
+            else:
+                oth_writer.writerow([filename, predicted_type])
     
-    print("="*60)
-    print(f"Accuracy: {correct}/{total} = {correct/total*100:.1f}%")
+    print(f"\n✅ Done. Saved predictions to:\n  → {numbers_path}\n  → {others_path}")
+    print(f"Processed {total} images.\n")
     
-    if errors:
-        print(f"\nErrors ({len(errors)}):")
-        for filename, expected, predicted in errors:
-            print(f"  {filename}: {expected} -> {predicted}")
-    
-    return correct/total if total > 0 else 0
+    return correct / total if total > 0 else 0
 
 if __name__ == "__main__":
     test_on_ground_truth()
+
+

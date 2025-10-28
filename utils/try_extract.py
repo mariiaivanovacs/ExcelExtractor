@@ -42,14 +42,14 @@ def visualize_code(rows_sorted, cols_sorted):
         label = "Column" if j == 0 else ""
         plt.plot(xs, ys, 'g-o', alpha=0.6, label=label)
 
-    plt.title("Visualization of Rows and Columns")
-    plt.xlabel("X coordinate")
-    plt.ylabel("Y coordinate")
-    plt.legend()
-    plt.grid(True)
-    plt.axis('equal')
-    plt.gca().invert_yaxis()
-    plt.show()
+    # plt.title("Visualization of Rows and Columns")
+    # plt.xlabel("X coordinate")
+    # plt.ylabel("Y coordinate")
+    # plt.legend()
+    # plt.grid(True)
+    # plt.axis('equal')
+    # plt.gca().invert_yaxis()
+    # plt.show()
 
     
     

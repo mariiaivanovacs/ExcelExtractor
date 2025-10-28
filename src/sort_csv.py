@@ -10,9 +10,20 @@ def sort(path: str):
     df = df.sort_values(by="filename", ascending=True)
 
     df.to_csv(path, index=False)
-    print(f"Sorted {path}")
+    # print(f"Sorted {path}")
 
-
+import argparse
 if __name__ == "__main__":
-    sort("experiment/cell_types.csv")
-    # sort("data/csv/other_new.csv")
+    # get arguments 
+    parser = argparse.ArgumentParser(description="Run image processing pipeline step.")
+    parser.add_argument(
+        "--file",
+        required=True,
+        help="Choose which processing step to run."
+    )
+    args = parser.parse_args()
+    
+    path = args.file
+
+    
+    sort(path)

@@ -10,7 +10,7 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 TARGET_W = 100  # desired width (pixels). Width will be padded if smaller.
-TARGET_H = 16   # desired height (pixels). Height will be padded symmetrically if smaller.
+TARGET_H = 16  # desired height (pixels). Height will be padded symmetrically if smaller.
 
 def process_image_pad_lr(in_path: Path, out_path: Path, target_w: int = TARGET_W, target_h: int = TARGET_H, bg_color=(255,255,255)):
     """
@@ -109,10 +109,6 @@ def main(folder: Path, pattern: str = "*.*", target_w: int = TARGET_W, target_h:
                 print(f"Copied: {info['in']:30s} -> {info['out']:30s}  orig={info['orig_size']}")
         except Exception as e:
             print(f"⚠️  Failed on {p.name}: {e}")
-
-
-# if __name__ == "__main__":
-#     main(Path("words"))
 
 
 

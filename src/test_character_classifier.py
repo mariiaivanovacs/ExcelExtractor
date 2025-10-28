@@ -141,11 +141,18 @@ def predict_batch(model_path, image_dir, threshold=0.5):
 
 # Example usage
 if __name__ == '__main__':
-    results = predict_batch('mnt/outputs/number_detector_cnn.keras', 'characters')
+    results = predict_batch('mnt/outputs/number_detector_cnn.keras', 'words')
     
     # create 2 csv files 
     csv_1 = "data/csv/numbers_new.csv"
     csv_2 = "data/csv/other_new.csv"
+    # ensure they both exists 
+    if not os.path.exists(csv_1):
+        with open(csv_1, 'w') as f:
+            f.write("filename\n")
+    if not os.path.exists(csv_2):
+        with open(csv_2, 'w') as f:
+            f.write("filename\n")
     
     with open(csv_1, 'w') as f:
         f.write("filename\n")

@@ -10,7 +10,7 @@ from correct_columns import extract_table_cells_with_merge_detection, cells_to_c
 
 # ---------- Параметры ----------
 INPUT_PATH = "data/input/original.jpeg"   # <-- замените на путь к вашему изображению
-OUTPUT_DIR = "cells_out"
+OUTPUT_DIR = "cells_production"
 DEVELOPMENT_DIR = "steps_out"
 os.makedirs(OUTPUT_DIR, exist_ok=True) # to not to conflict
 
@@ -813,7 +813,7 @@ import os
 import cv2
 import numpy as np
 
-def extract_table_cells(working_img, centroids_np, rows_pts, output_dir="cells_out", padding=2):
+def extract_table_cells(working_img, centroids_np, rows_pts, output_dir="cells_production", padding=2):
     """
     Extract individual cells from a table and save them as separate images.
     
@@ -821,7 +821,7 @@ def extract_table_cells(working_img, centroids_np, rows_pts, output_dir="cells_o
     - working_img: The table image
     - centroids_np: Array of all intersection points
     - rows_pts: Grouped centroids organized by rows
-    - output_dir: Directory to save cell images (default: "cells_out")
+    - output_dir: Directory to save cell images (default: "cells_production")
     - padding: Pixels to add inside cell boundaries to avoid lines (default: 2)
     
     Returns:

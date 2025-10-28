@@ -35,61 +35,61 @@ import cv2
 import numpy as np
 from typing import Tuple
 
-def upscale_to_size(img_uint8: np.ndarray,
-                    target_size: Tuple[int,int]=(160, 40),
-                    keep_aspect: bool = True,
-                    pad_value: int = 255) -> np.ndarray:
-    """
-    Resize (upscale/downscale) a grayscale image to target_size (width, height).
+# def upscale_to_size(img_uint8: np.ndarray,
+#                     target_size: Tuple[int,int]=(160, 40),
+#                     keep_aspect: bool = True,
+#                     pad_value: int = 255) -> np.ndarray:
+#     """
+#     Resize (upscale/downscale) a grayscale image to target_size (width, height).
 
-    Parameters
-    ----------
-    img_uint8 : np.ndarray
-        Input image (grayscale or BGR). dtype uint8.
-    target_size : tuple (width, height)
-        Target output size in pixels. Default (160, 40).
-    keep_aspect : bool
-        If True, preserve aspect ratio and pad with pad_value to reach target size.
-        If False, stretch image to exactly target_size.
-    pad_value : int
-        Padding pixel value (0..255). Default 255 (white background).
+#     Parameters
+#     ----------
+#     img_uint8 : np.ndarray
+#         Input image (grayscale or BGR). dtype uint8.
+#     target_size : tuple (width, height)
+#         Target output size in pixels. Default (160, 40).
+#     keep_aspect : bool
+#         If True, preserve aspect ratio and pad with pad_value to reach target size.
+#         If False, stretch image to exactly target_size.
+#     pad_value : int
+#         Padding pixel value (0..255). Default 255 (white background).
 
-    Returns
-    -------
-    out : np.ndarray
-        Resized uint8 image of shape (target_height, target_width).
-    """
-    # --- Ensure grayscale ---
-    img = img_uint8
-    if img is None:
-        raise ValueError("img_uint8 is None")
-    if img.ndim == 3:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#     Returns
+#     -------
+#     out : np.ndarray
+#         Resized uint8 image of shape (target_height, target_width).
+#     """
+#     # --- Ensure grayscale ---
+#     img = img_uint8
+#     if img is None:
+#         raise ValueError("img_uint8 is None")
+#     if img.ndim == 3:
+#         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-    target_w, target_h = target_size
-    h, w = img.shape[:2]
+#     target_w, target_h = target_size
+#     h, w = img.shape[:2]
 
-    if not keep_aspect:
-        # Stretch to exact size (fast, may distort)
-        interp = cv2.INTER_CUBIC if (target_w > w or target_h > h) else cv2.INTER_AREA
-        out = cv2.resize(img, (target_w, target_h), interpolation=interp)
-        return out.astype(np.uint8)
+#     if not keep_aspect:
+#         # Stretch to exact size (fast, may distort)
+#         interp = cv2.INTER_CUBIC if (target_w > w or target_h > h) else cv2.INTER_AREA
+#         out = cv2.resize(img, (target_w, target_h), interpolation=interp)
+#         return out.astype(np.uint8)
 
-    # Preserve aspect ratio: scale to fit inside target, then pad
-    scale = min(target_w / w, target_h / h)
-    new_w = max(1, int(round(w * scale)))
-    new_h = max(1, int(round(h * scale)))
+#     # Preserve aspect ratio: scale to fit inside target, then pad
+#     scale = min(target_w / w, target_h / h)
+#     new_w = max(1, int(round(w * scale)))
+#     new_h = max(1, int(round(h * scale)))
 
-    interp = cv2.INTER_CUBIC if scale > 1 else cv2.INTER_AREA
-    resized = cv2.resize(img, (new_w, new_h), interpolation=interp)
+#     interp = cv2.INTER_CUBIC if scale > 1 else cv2.INTER_AREA
+#     resized = cv2.resize(img, (new_w, new_h), interpolation=interp)
 
-    # create canvas and paste centered
-    canvas = np.full((target_h, target_w), pad_value, dtype=np.uint8)
-    x_off = (target_w - new_w) // 2
-    y_off = (target_h - new_h) // 2
-    canvas[y_off:y_off+new_h, x_off:x_off+new_w] = resized
+#     # create canvas and paste centered
+#     canvas = np.full((target_h, target_w), pad_value, dtype=np.uint8)
+#     x_off = (target_w - new_w) // 2
+#     y_off = (target_h - new_h) // 2
+#     canvas[y_off:y_off+new_h, x_off:x_off+new_w] = resized
 
-    return canvas
+#     return canvas
 
 # ---------- Основные шаги ----------
 def preprocess(img):
@@ -248,12 +248,7 @@ def find_table_contour(thresh):
                     if abs(arr[i, col] - arr[i-1, col]) < 20:
                         arr[i, col] = arr[i-1, col] + 3
                         
-            print(arr)
             return arr
-            # for i in range(4):
-            #     print(plt[i][0], plt[i][1])
-                
-            # return plt
         
     return None
 
@@ -263,7 +258,6 @@ def straighten_table_contour(pts):
     pts: np.array of shape (4,2), the detected contour corners (float32)
     returns: rectified 4 points (float32)
     """
-    # sort the points to (tl, tr, br, bl)
     rect = np.zeros((4, 2), dtype="float32")
     s = pts.sum(axis=1)
     rect[0] = pts[np.argmin(s)]  # top-left
@@ -288,22 +282,22 @@ def straighten_table_contour(pts):
 
     return straight_rect
 
-def warp_table(image, pts):
-    rect = straighten_table_contour(pts)
+# def warp_table(image, pts):
+#     rect = straighten_table_contour(pts)
     
-    width = int(rect[1][0] - rect[0][0])
-    height = int(rect[3][1] - rect[0][1])
+#     width = int(rect[1][0] - rect[0][0])
+#     height = int(rect[3][1] - rect[0][1])
     
-    dst = np.array([
-        [0, 0],
-        [width-1, 0],
-        [width-1, height-1],
-        [0, height-1]
-    ], dtype="float32")
+#     dst = np.array([
+#         [0, 0],
+#         [width-1, 0],
+#         [width-1, height-1],
+#         [0, height-1]
+#     ], dtype="float32")
 
-    M = cv2.getPerspectiveTransform(pts, dst)
-    warped = cv2.warpPerspective(image, M, (width, height))
-    return warped, M
+#     M = cv2.getPerspectiveTransform(pts, dst)
+#     warped = cv2.warpPerspective(image, M, (width, height))
+#     return warped, M
 
 
 
@@ -418,19 +412,7 @@ def group_and_visualize_nodes(
         out_path: str = "steps_out/nodes_visual.png"
     ) -> Tuple[List[List[Tuple[float, float]]], str, Dict]:
     
-    """
-    - intersections_mask: binary mask (0/255) containing intersection pixels (result of bitwise_and of horiz/vert)
-    - original_img: original image (grayscale or BGR) used for overlay visualization
-    - area_thresh: min area (in px) to keep a connected component. If None, computed heuristically.
-    - row_tol: tolerance in pixels for grouping centroids into same row (if None computed as max(10, h//150))
-    - trim_to_min_cols: if True, trims all rows to the minimum number of columns found
-    - out_path: where to save the visualization PNG
 
-    Returns:
-        rows_of_points: list of rows, each row is a list of (x,y) tuples (float)
-        viz_img_path: path to saved visualization image
-        diagnostics: dict with some stats
-    """
     if len(centroids) == 0:
         raise ValueError("No centroids provided.")
 
@@ -460,25 +442,13 @@ def group_and_visualize_nodes(
             rows.append(current_row)
             current_row = [(x, y)]
     rows.append(current_row)
-    # compare size of rosw and points
+    # compare size of rows and points
     print(f"Number of rows: {len(rows)}")
     print(f"Number of points: {len(points)}")
 
     # Sort each row by x
     rows_of_points = [sorted(r, key=lambda pt: pt[0]) for r in rows]
 
-    # # Optionally trim rows to min length
-    # if trim_to_min_cols and rows_of_points:
-    #     min_len = min(len(r) for r in rows_of_points)
-    #     rows_of_points = [r[:min_len] for r in rows_of_points]
-    # else:
-    #     min_len = min(len(r) for r in rows_of_points) if rows_of_points else 0
-
-    # diagnostics.update({
-    #     "rows_detected": len(rows_of_points),
-    #     "cols_per_row_used": min_len,
-    #     "points_kept": sum(len(r) for r in rows_of_points)
-    # })
 
     # --- Visualization ---
     # Prepare overlay (convert grayscale to BGR if needed)
@@ -581,11 +551,7 @@ def group_centroids_into_grid(centroids, row_tol=None, min_cols=3, debug=False):
     min_len = min(len(r) for r in rows)
     # rows = [r[:min_len] for r in rows if len(r) >= min_len]
 
-    if debug:
-        print(f"[DEBUG] Total centroids: {len(centroids)}")
-        print(f"[DEBUG] Row tolerance: {row_tol}")
-        print(f"[DEBUG] Detected rows: {len(rows)}")
-        print(f"[DEBUG] Columns per row: {min_len}")
+   
 
     return rows
 
@@ -673,7 +639,7 @@ import cv2
 import numpy as np
 
 def extract_table_cells_with_merge_detection(working_img, centroids_np, rows_pts, 
-                                              output_dir="cells_out", padding=0):
+                                              output_dir="cells_production", padding=0):
     """
     Extract cells from a table, detecting and handling merged cells that span multiple rows/columns.
     
@@ -703,11 +669,6 @@ def extract_table_cells_with_merge_detection(working_img, centroids_np, rows_pts
     h, w = (working_img.shape[0], working_img.shape[1]) if hasattr(working_img, 'shape') else (0, 0)
 
     
-    # print(f"shap of columns is: {cols_pts}")
-    
-    # for i in range(len(cols_pts)):
-    #     print(f"THE column {i} is : {cols_pts[i]} and its length: {len(cols_pts[i])}")
-    
     print(f"\n=== Extracting Table Cells with Merge Detection ===")
     print(f"Grid size: {len(rows_pts)} rows × {len(cols_pts)} columns")
     
@@ -718,18 +679,6 @@ def extract_table_cells_with_merge_detection(working_img, centroids_np, rows_pts
     from try_extract import visualize_code
     visualize_code(rows_sorted, cols_sorted)
     
-     # Normalize points into python tuples of ints
-    # norm_rows = []
-    # for row in rows_sorted:
-    #     norm_row = []
-    #     for p in row:
-    #         if p is None:
-    #             norm_row.append(None)
-    #         else:
-    #             # support numpy arrays, lists, tuples
-    #             x, y = int(round(float(p[0]))), int(round(float(p[1])))
-    #             norm_row.append([x, y])
-    #     norm_rows.append(norm_row)
         
     norm_rows = [[_to_int_point(p) for p in row] for row in rows_sorted]
     processed = set()
@@ -755,32 +704,8 @@ def extract_table_cells_with_merge_detection(working_img, centroids_np, rows_pts
         if usable_cols <= 0:
             continue
         
-        print("Usable cols: ", usable_cols)
         
         for c_idx in range(usable_cols):
-            # for i_row in norm_rows:
-            #     intr_on_row_x = i_row[c_idx][0]
-            #     for n_row in norm_rows:
-            #         if n_row[c_idx] in range(intr_on_row_x-3, intr_on_row_x+3):
-            #             row_bottom = n_row            
-                
-            # # tl = row_top[c_idx]
-            # # tr = row_top[c_idx + 1]
-            # # current_col = cols_sorted[c_idx+1]
-            # # previous_col = cols_sorted[c_idx]
-            # # br = current_col[c_idx+1]
-            # # bl = previous_col[c_idx+1]
-            
-            #             tl = row_top[c_idx]
-            #             tr = row_top[c_idx + 1]
-            #             bl = row_bottom[c_idx]
-            #             br = row_bottom[c_idx + 1]
-            #             # br = row_bottom[c_idx+1]
-                        
-                        
-            #             # Skip if any corner is missing
-            #             if tl is None or tr is None or bl is None or br is None:
-            #                 continue
             
             row_top = norm_rows[r_idx]
             # iterate c_idx across top row gaps
@@ -844,12 +769,6 @@ def extract_table_cells_with_merge_detection(working_img, centroids_np, rows_pts
                 y_max = int(min(h, max(ys) + padding))
                 
                 if count <2:
-                    print(f"fIRST top left and right bottom left adn right are: {tl}, {tr}, {bl}, {br}")
-                    print(row_top[:3])
-                    print(f"xs: {xs}, ys: {ys}")
-                    # print(f"Current col: {current_col}")
-                    # print(f"Previous col: {previous_col}")
-                    print(f"x_min: {x_min}, y_min: {y_min}, x_max: {x_max}, y_max: {y_max}")
                     count += 1
 
                 # Validate size
@@ -905,52 +824,13 @@ def extract_table_cells_with_merge_detection(working_img, centroids_np, rows_pts
             for row in cells_list:
                 writer.writerow(row)
     
-    # Save debug image
-    if debug_img is not None:
-        debug_path = os.path.join(output_dir, "debug_grid.png")
-        cv2.imwrite(debug_path, debug_img)
+    # num_rows = len(rows_pts) - 1
+    # num_cols = len(rows_pts[0]) - 1
         
-    num_rows = len(rows_pts) - 1
-    num_cols = len(rows_pts[0]) - 1
-        
-    # grid_map = create_grid_map(cells_list, num_rows, num_cols)
 
     
     return cells_list, None
     
-    
-
-
-
-
-
-
-
-# def create_grid_map(cells_list, num_rows, num_cols):
-#     """
-#     Create a 2D map showing which cell ID occupies each grid position.
-#     Useful for CSV reconstruction.
-    
-#     Returns:
-#     - 2D list where grid_map[r][c] = cell_id or -1 if empty
-#     """
-#     grid_map = [[-1 for _ in range(num_cols)] for _ in range(num_rows)]
-    
-#     for cell in cells_list:
-#         cell_id = cell["id"]
-#         r = cell["row"]
-#         c = cell["col"]
-#         row_span = cell["row_span"]
-#         col_span = cell["col_span"]
-        
-#         # Fill all positions occupied by this cell
-#         for rr in range(r, r + row_span):
-#             for cc in range(c, c + col_span):
-#                 if rr < num_rows and cc < num_cols:
-#                     grid_map[rr][cc] = cell_id
-    
-#     return grid_map
-
 
 def cells_to_csv_structure(cells_list, grid_map):
     """
@@ -1052,17 +932,7 @@ def process_table_image(path):
     vert_mask = cv2.dilate(vert_mask, np.ones((3,3), np.uint8), iterations=1)
     
     cv2.imwrite(os.path.join(DEVELOPMENT_DIR, "horiz_mask.png"), cv2.bitwise_or(horiz_mask, vert_mask))
-    # cv2.imwrite(os.path.join(DEVELOPMENT_DIR, "vert_mask.png"), vert_mask)
-    
-    
-    # # Show results in windows
-    # cv2.imshow("Original", img)
-    # cv2.imshow("Horizontal Lines", horiz_mask)
-    # cv2.imshow("Vertical Lines", vert_mask)
-    
 
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
     
     intersections = cv2.bitwise_and(horiz_mask, vert_mask)
     cv2.imwrite(os.path.join(DEVELOPMENT_DIR, "intersections.png"), intersections)
@@ -1071,7 +941,6 @@ def process_table_image(path):
     # найти центры connectedComponents
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(intersections, connectivity=8)
     # # centroids — список точек (x,y)
-    # print("centroids:", centroids)
     # Make a copy so we don't modify original
     img_with_points = working_img.copy()
     
@@ -1095,21 +964,14 @@ def process_table_image(path):
     )
     print("Saved debug v gisualization to:", viz_path)
     
-    
-    
     print("Detected rows x cols:", len(rows_pts), len(rows_pts[0]) if rows_pts else 0)
     
     
     rows_pts = group_centroids_into_grid(centroids_np, row_tol=4, debug=True)
-    print("rows_pts:", rows_pts)
-    print("SECOND Detected rows x cols:", len(rows_pts), len(rows_pts[0]) if rows_pts else 0)
     visualize_rows(working_img, rows_pts, "steps_out/rows_visualized.png")
     
     # display parameters of rows_pts / characterists 
-    print("len(rows_pts):", len(rows_pts))
-    print("len(rows_pts[0]):", len(rows_pts[0]))
-    print("len(rows_pts[0][0]):", len(rows_pts[0][0]))
-    # print("rows_pts:", rows_pts)
+
     
     # After your existing code:
     result_img = detect_and_draw_table_lines(working_img, centroids_np, rows_pts)
@@ -1139,9 +1001,7 @@ def process_table_image(path):
    
     # найти центры connectedComponents
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(intersections, connectivity=8)
-    # # centroids — список точек (x,y)
-    # print("centroids:", centroids)
-    # Make a copy so we don't modify original
+
     img_with_points = result_img.copy()
     
     centroids_np = np.array(centroids)  # from your earlier step
@@ -1171,60 +1031,22 @@ def process_table_image(path):
     print("SECOND Detected rows x cols:", len(rows_pts), len(rows_pts[0]) if rows_pts else 0)
     visualize_rows(working_img, rows_pts, "steps_out/rows_visualized.png")
     
-    
-    # rows_of_points = build_rows_from_centroids(centroids_np, working_img.shape,
-    #                                       area_thresh=0, row_tol=None,
-    #                                       trim_to_min=True)
-
-    # if len(rows_of_points) < 2 or len(rows_of_points[0]) < 2:
-    #     raise RuntimeError("Not enough grid nodes to extract cells. Try lowering area_thresh, increasing row_tol, or improving line masks.")
-
     # optional visualize nodes on the warped image:
     viz_path = os.path.join("steps_out", "grid_nodes_and_cells.png")
     os.makedirs("steps_out", exist_ok=True)
     visualize_grid_and_cells(rows_pts, result_img, viz_path)
     print("Saved visualization:", viz_path)
-    
-    
-    # Extract cells
-    # cells_dict = extract_table_cells(working_img, centroids_np, rows_pts)
-
-    # # Access individual cells
-    # print(f"\nExample: Accessing cell at row 0, column 0:")
-    # if "r0_c0" in cells_dict:
-    #     cell_info = cells_dict["r0_c0"]
-    #     print(f"  Path: {cell_info['path']}")
-    #     print(f"  Size: {cell_info['width']}×{cell_info['height']} pixels")
-    #     print(f"  Bounding box: {cell_info['bbox']}")
-        
         
     cells_list, grid_map = extract_table_cells_with_merge_detection(
         result_img, centroids_np, rows_pts
     )
-
-    # Print summary
-    print("\n=== Extraction Summary ===")
-    # for cell in cells_list:
-    #     merge_info = ""
-        # if cell["is_merged"]:
-        #     merge_info = f" [MERGED: {cell['row_span']}×{cell['col_span']}]"
-        # print(f"Cell {cell['id']}: Row {cell['row']}, Col {cell['col']}{merge_info}")
-        # print(f"  Size: {cell['width']}×{cell['height']}px")
-        # print(f"  Path: {cell['path']}")
-
-    # Create CSV structure (for later OCR integration)
+    
     csv_structure = cells_to_csv_structure(cells_list, grid_map)
 
-    # Visualize grid map
-    # print("\n=== Grid Map (Cell IDs) ===")
-    # for row in grid_map:
-    #     print("  " + " ".join(f"{cell_id:3d}" if cell_id >= 0 else "  -" for cell_id in row))
 
 
 # ---------- Запуск ----------
 if __name__ == "__main__":
     process_table_image(INPUT_PATH)
-    # print(f"Найдено ячеек: {len(result['cells'])} ({result['rows']} rows x {result['cols']} cols)")
-    # for c in result['cells'][:10]:
-    #     print(f"r{c['row']} c{c['col']} -> {c['path']}")
+
     print("Готово. Ячейки сохранены в:", OUTPUT_DIR)

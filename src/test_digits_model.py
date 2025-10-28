@@ -1,14 +1,3 @@
-"""
-test_digit_model.py
-
-Loads a trained CNN digit classifier (0–9),
-runs predictions on all images in a specified directory,
-and saves results to experiment/predictions.csv.
-
-Requirements:
-    pip install tensorflow pillow pandas
-"""
-
 import os
 import numpy as np
 import pandas as pd
@@ -17,31 +6,12 @@ from tensorflow.keras.preprocessing.image import load_img, img_to_array
 from tqdm import tqdm
 from pathlib import Path
 
-# ======================
-# 🔧 CONFIGURATION
-# ======================
 MODEL_PATH = "models/fine_tuned_real_data_classifier.keras"     # <-- your trained model path
 IMAGES_DIR = "characters"   # <-- change to your test directory
 OUTPUT_CSV = "experiment/predictions.csv"
 IMG_SIZE = (32, 32)                       # input size used during training
 IS_GRAYSCALE = True                       # set False if trained on RGB
-# ======================
-# 3->9 
-# 5_> 6
-# 0--> 8
-"""
-9
-2
-3
-6
-0
-5
-7
-1
 
-
-
-# """
 
 def preprocess_image(img_path, img_size=(32, 32), grayscale=True):
     """Load and preprocess a single image for CNN prediction."""
@@ -70,6 +40,8 @@ def main():
         for f in os.listdir(IMAGES_DIR)
         if f.lower().endswith((".png", ".jpg", ".jpeg", ".bmp"))
     ])
+    
+    print("Amount of images: ", len(image_paths))
 
     if not image_paths:
         print("⚠️ No images found in the specified directory.")
@@ -79,13 +51,13 @@ def main():
 
     results = []
     
-    df_numbers = pd.read_csv("data/csv/numbers_new.csv", )
+    df_numbers = pd.read_csv("data/csv/numbers_latest.csv", )
 
     print(f"🔍 Running predictions on {len(image_paths)} images...")
     for img_path in tqdm(image_paths):
         # get file name 
         filename = os.path.basename(img_path)
-        if filename  in df_numbers["filename"].values:
+        if filename.split("_word")[0] + ".png"  in df_numbers["filename"].values:
             
             img_tensor = preprocess_image(img_path, IMG_SIZE, IS_GRAYSCALE)
             preds = model.predict(img_tensor, verbose=0)

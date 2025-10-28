@@ -39,7 +39,7 @@ if __name__ == "__main__":
     # folder = "blobs"
     
     # clear_directory(folder)
-    # folder = "cells_out"
+    # folder = "cells_production"
     # clear_directory(folder)
     # folder = "characters"
     
@@ -51,6 +51,18 @@ if __name__ == "__main__":
     # folder = "results"
     
     # clear_directory(folder)
+    folder = "characters_old"
+    clear_directory(folder)
+    folder = "words_production_old"
+    clear_directory(folder)
+    folder = "words_old"
+    clear_directory(folder)
+    folder = "cells_production"
+    clear_directory(folder)
+    folder = "blobs_old"
+    clear_directory(folder)
+    folder = "cells_cleaned_old"
+    clear_directory(folder)
     folder = "results"
     clear_directory(folder)
     # folder = ""
