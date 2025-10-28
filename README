@@ -1,7 +1,8 @@
 TEXT RECOGNITION
 PURPOSE OF PROJECT: EXTRACT TEXT FROM TABLES IN IMAGES AND STORE RESULT IN CSV FILE (Optional visualization of results)
 
-Files in main / final pipeline:
+FILES IN MAIN PIPEPINE:
+
 utils/preprocessing.py
 
 src/try_blobs.py (from cells to blobs)
@@ -12,4 +13,153 @@ src/seg_cells.py (from words to characters)(on this stage characters are size 32
 
 src/find_size.py (to remove white characters , iamges where no characters)
 
-src/test_character_classifier.py
+models/train_number_other.py - script to train NUMBER and OTHER classifier
+
+src/test_character_classifier.py - check every word image and save it to numbers.csv or other.csv
+
+src/sort_csv.py - for sorting filenames in numbers.csv and other.csv
+Important note: Why classify specifically words? Some digits might be broken or unrecognizable,
+that will lead to its exclusion from final code flow
+
+src/find_size.py - file for additional separation for merged, too close to each other characters
+
+# in my current pipeline - 36 files identificated with too large characters and replaced / splitted sucessfully
+
+models/fine_tuned_real_data_classifier.keras - CNN model for digit recognition (0-9)
+
+# Final production model achieving 100% accuracy on real test data
+
+src/test_digits_model.py - run CNN built model to predict numbers
+
+# predictions are stored in experiment/predictions.csv
+
+src/combine_predictions_to_table.py - final script to reconstruct complete table
+
+# Combines individual character predictions back into words and cells
+
+# Creates CSV output (data/csv/reconstructed_table.csv) with 21 rows × 20 columns
+
+# Generates visualization (results/table_visualization.png) showing table structure
+
+DETAILED EXPLANATION OF TRAINING DIGIT RECOGNITION CNN
+
+1. train_number_keras_improved.py - initial synthetic data model (99.25% on synthetic, failed on real)
+2. train_for_real_data.py - first real data model matching image polarity (62.5% accuracy)
+3. train_improved_for_real_data.py - enhanced deep model attempt (33.3% accuracy, overfitting)
+4. train_real_data_focused.py - focused model with better regularization (40% accuracy)
+5. fine_tune_on_real_data.py - fine-tuning approach using base model from step 2
+   Fine-tuned on 15 real character images with 20x data augmentation (300 total samples)
+   Result: accuracy around 80% overall, best model compared to all others
+
+The biggest problem emerged: Synthetic data couldnt reach the same parameters
+as real data although implementation of data augmentation
+Success emerged only after feeding samples of real data into model
+
+
+FOLDERS ANNOTATIONS: 
+
+blobs: folder for all rows found in cells
+cells_cleaned: folder for all separated images of each cell
+characters: each character separated + adding padding to have 32 X 32 pixels size
+data: stored for input and output data + some csv file
+experiment: folder for trying / executing new ideas. Was used primary for indetifcaiton of features for training model (RandomForest, or XGBOOST - Failed: accuracy: 60%%)
+mnt: folder for storing results, evaluation of results of model executions
+models: folder for training models (CNNs) + stored files of RandomForest, Knn, XGBOOST, scalel and label_encoder (all are not in use, had place during development) Keep for purpose of future development
+results: folder for temporary outcomes, results of funciton, can be clear without losing smth important
+src: folder for main component file, was originally created for training model to predict number, currently most files are related to data preprocessing in terms of division/ extraction words and characters from images of cells + some utility
+steps_out: folder for main outcome of initial/ first preprocessing table image
+temporary_compare: static folder for storing some inner stages results - backup of important image analysis
+test, tests_2: folders used for small batch training, execution, test running of models accuracy
+utils: folder for initial preprocessing of table, detection of lines.
+words: separated, not-padded words
+words_production: separated, padded, words extracted
+
+MAIN STAGES IDENTIFIED:
+
+Preprocess table
+Cut the table correctly
+Detect lines in table
+seg into cells
+prepare cells (remove black boundaries so no errors in blobs)
+Detect and extract blobs
+Detect and extract words in blobs
+Detect characters and extract (main pivot, possible future direction, identify by words, not characters)
+Prepare characters
+Train CNN to identify if the word is NUMBER or OTHER
+Train CNN to identify digits 0-9
+Apply and store result in csv and visualize
+
+CURRENTLY FULL SUCCESS:
+Preprocess table and extract all cells correctly
+Extract all blobs and all words correctly
+Train CNN to identify digits 0-9 (aroung 85% accuracy - best result)
+
+WHAT IS VULNERABLE IN CURRENT RESULTS 
+
+
+1. If the characters are numbers they are almost 95% always correctly separated
+   However for letters it is not the same, most of current characters for letter are incorrectly cut
+
+2. CNN for identification of NUMBER or OTHER words or cells
+   Reason is differences between numbers and words are more semantic (however, there is an identified pattern of difference)
+   Pattern:
+   if the text is number -> whitespaces are larger. Main issue that is hard to overcome (the same whitespace are between words, not characters)
+
+3. General pipeline is manual
+   Meaning: if someone would like to input image of table and receive csv as ouput , currently no main file to perform this sequence of actions
+
+4. The size of cells were sacrificed; meaning in final table_visualization.png the cells are not the original size: cause additional errors
+
+USEFUL TECHNIQUES IMPLEMENTED:
+
+1. For correct detection of lines in table, they were initially identify and after my heuristic function draw to fill the blanks if space / hole is little
+   Result: all lines in table identified correctly: result stored in steps_out/horiz_mask_after.png
+
+2. Remove almost black borders from cells (src/seg_cells.py)
+   Solution is : check each 3 rows or cols of pixels in eahc cell image and if patter of line is detected , asusme this is a line -> relove this row/col of pixels
+   Reason: black borders cause a lot of errors in correct identification of blobs and words
+
+3. For characters too close to each other. Crucial for numbers
+   Why: assuming on current step we sacrifies the queality of letters characters, some numbers characters were too close to each other
+   Solution: find the location and indexed of cols and rows where the character is on image and if the ratio of width/height is not correct for one character separate symmetrically into 2 or 3 characters based on ratio
+
+4. Data augmentation for synthetic data generation:
+   Problem: although visual similarity of test and real images , and high accuracy on synthetic data, when tried on real data -> fail - almost less than 30%
+   Solution: feed - train on small batch of real data (heuristic knowledge) , -> achieved result -> 85%
+
+MAIN ISSUES NOW:
+
+1. Letters characters are not correctly separated
+2. General pipeline is manual
+3. The size of cells were sacrificed; meaning in final table_visualization.png the cells are not the original size: cause additional errors
+4. the current mechanism is if any character of the word was identified as number ,that all in number. Why? without this current cnn skip a huge amount of numbers
+
+INSIGHTS ABOUT DIFFERENTIATION BETWEEN WORDS AND NUMBERS:
+
+1. Whitespaces -> nubmers have considerably stable width of white spaces and it is visually wider than for words
+2. the height of numbers is usually bigger and more stable than for words (letters can be uppercase and lowercase)
+3. The main difference for models like RandomForest and XGBOOST (best results): the first 2 and last 2 cols of pixels of each character, their intesity is import to define how character starts and ends
+4. While training RandomForest for classification if word is number main features that vary for diff numbers were:
+   Dark fraction
+   Col_peaks
+   Columns count
+   Frequency white
+   Average Peak white
+   Compactness
+   Vertical intensity variance (CAN see results in temporary_compare/feature_pairs_old.png)
+
+APPROACHES THAT WERE TRIED AND FAILED / NOT IMPLEMENTED 
+
+1. Define by whitespace in the top rows of characters and in the bottom rows of characters
+2. Write manually algorithm for identification of characters (only digits)
+
+TEST CASES FOR QUICK OVERVIEW
+To see how cells are separates -> run utils/preprocessing.py
+To test how CNN identifies of word in NUMBER Or Other: run src/test_character_classifier.py
+To test how CNN identifies digits: run src/test_digits_model.py
+To see how final table is reconstructed: run src/combine_predictions_to_table.py
+To see how model (RandomForest) performs: run src/test_xgboost.py
+
+MODELS TRAINED:
+fine_tuned_real_data_classifier.keras - model to define digits 0-9
+mnt/outputs/number_detector_cnn.keras - model to define if NUMBER or OTHER

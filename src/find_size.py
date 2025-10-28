@@ -203,6 +203,9 @@ def split_character_by_center_and_pad(
 
     x, y, w, h = bbox
     ratio = w / float(h) if h != 0 else 0.0
+    
+    filename = filename.replace(".png", "")
+
 
     # ensure grayscale for cropping/padding
     img = np_img.copy()
@@ -349,6 +352,7 @@ for filename in os.listdir(working_directory):
     # Check if this filename is listed in the CSV
     if filename not in csv_filenames:
         continue  # skip files not in the CSV
+    
 
     img_path = os.path.join(working_directory, filename)
     img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)

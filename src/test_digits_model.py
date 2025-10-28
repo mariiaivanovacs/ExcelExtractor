@@ -3,7 +3,7 @@ test_digit_model.py
 
 Loads a trained CNN digit classifier (0–9),
 runs predictions on all images in a specified directory,
-and saves results to experiments/predictions.csv.
+and saves results to experiment/predictions.csv.
 
 Requirements:
     pip install tensorflow pillow pandas
@@ -22,7 +22,7 @@ from pathlib import Path
 # ======================
 MODEL_PATH = "models/fine_tuned_real_data_classifier.keras"     # <-- your trained model path
 IMAGES_DIR = "characters"   # <-- change to your test directory
-OUTPUT_CSV = "experiments/predictions.csv"
+OUTPUT_CSV = "experiment/predictions.csv"
 IMG_SIZE = (32, 32)                       # input size used during training
 IS_GRAYSCALE = True                       # set False if trained on RGB
 # ======================
@@ -79,7 +79,7 @@ def main():
 
     results = []
     
-    df_numbers = pd.read_csv("data/csv/numbers.csv", )
+    df_numbers = pd.read_csv("data/csv/numbers_new.csv", )
 
     print(f"🔍 Running predictions on {len(image_paths)} images...")
     for img_path in tqdm(image_paths):

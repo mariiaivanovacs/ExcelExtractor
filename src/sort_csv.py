@@ -14,5 +14,5 @@ def sort(path: str):
 
 
 if __name__ == "__main__":
-    sort("data/csv/numbers.csv")
-    sort("data/csv/other.csv")
+    sort("experiment/cell_types.csv")
+    # sort("data/csv/other_new.csv")

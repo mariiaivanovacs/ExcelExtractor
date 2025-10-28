@@ -53,6 +53,7 @@ from tensorflow import keras
 import numpy as np
 from PIL import Image
 import os
+from collections import defaultdict
 
 def predict_batch(model_path, image_dir, threshold=0.5):
     """
@@ -72,35 +73,70 @@ def predict_batch(model_path, image_dir, threshold=0.5):
     # Get all image files
     image_files = [f for f in os.listdir(image_dir) 
                    if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp'))]
-    
+    # sorted image_files
+    image_files.sort()
     results = []
-    # Process each image
-    for img_file in image_files:
-        img_path = os.path.join(image_dir, img_file)
-        
-        try:
-            # Load and preprocess
-            img = Image.open(img_path).convert('L').resize((32, 32))
-            img_array = np.array(img, dtype=np.float32) / 255.0
-            img_array = img_array.reshape(1, 32, 32, 1)
-            
-            # Predict
-            prob = model.predict(img_array, verbose=0)[0][0]
-            
-            # Store result
-            results.append({
-                'filename': img_file,
-                'probability': float(prob),
-                'label': 'NUMBER' if prob > threshold else 'OTHER',
-                'confidence': float(prob if prob > 0.5 else 1 - prob)
-            })
-        
-        except Exception as e:
-            results.append({
-                'filename': img_file,
-                'error': str(e)
-            })
+   
     
+    image_files_dict = defaultdict(list)
+
+    # 1) Group files by prefix before "_word"
+    for img_f in image_files:
+        key = img_f.split("_word")[0]
+        image_files_dict[key].append(img_f)
+
+    print("Groups:", dict(image_files_dict))
+    print("Number of groups:", len(image_files_dict))
+
+    results = []
+
+    # 2) Process each group safely
+    for group_key, files in image_files_dict.items():
+        print(f'Processing group "{group_key}" -> {files}')
+        group_results = []
+
+        # predict each file in the group and store in group_results
+        for fname in files:
+            img_path = os.path.join(image_dir, fname)
+            print("  File:", img_path)
+            try:
+                img = Image.open(img_path).convert('L').resize((32, 32))
+                arr = np.array(img, dtype=np.float32) / 255.0
+                arr = arr.reshape(1, 32, 32, 1)
+
+                prob = float(model.predict(arr, verbose=0)[0][0])  # scalar float
+                label = 'NUMBER' if prob > threshold else 'OTHER'
+                confidence = float(prob if label == 'NUMBER' else 1 - prob)
+
+                group_results.append({
+                    'filename': fname,
+                    'probability': prob,
+                    'label': label,
+                    'confidence': confidence
+                })
+            except Exception as e:
+                # handle missing/corrupt files gracefully
+                print(f"    Error processing {fname}: {e}")
+                group_results.append({
+                    'filename': fname,
+                    'probability': 0.0,
+                    'label': 'OTHER',
+                    'confidence': 0.0
+                })
+
+        # 3) If any in group is NUMBER, mark all as NUMBER
+        if any(r['label'] == 'NUMBER' for r in group_results):
+            print(f'  -> At least one NUMBER found in group "{group_key}". Marking all as NUMBER.')
+            for r in group_results:
+                r['label'] = 'NUMBER'
+                r['probability'] = 1.0
+                r['confidence'] = 1.0
+
+        # 4) Add finalized group_results to global results
+        results.extend(group_results)
+
+    print(results )
+    print(f"Len of results: {len(results)}")  
     return results
 
 # Example usage
@@ -108,8 +144,13 @@ if __name__ == '__main__':
     results = predict_batch('mnt/outputs/number_detector_cnn.keras', 'characters')
     
     # create 2 csv files 
-    csv_1 = "data/csv/numbers.csv"
-    csv_2 = "data/csv/other.csv"
+    csv_1 = "data/csv/numbers_new.csv"
+    csv_2 = "data/csv/other_new.csv"
+    
+    with open(csv_1, 'w') as f:
+        f.write("filename\n")
+    with open(csv_2, 'w') as f:
+        f.write("filename\n")
     
     # Print results
     for result in results:

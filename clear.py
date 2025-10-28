@@ -43,15 +43,15 @@ if __name__ == "__main__":
     # clear_directory(folder)
     # folder = "characters"
     
+    # # clear_directory(folder)
+    # folder = "experiment/debug_out"
     # clear_directory(folder)
-    folder = "experiment/debug_out"
-    clear_directory(folder)
-    # folder = "experiment"
+    # # folder = "experiment"
+    # # clear_directory(folder)
+    # folder = "results"
+    
     # clear_directory(folder)
     folder = "results"
-    
-    clear_directory(folder)
-    folder = "generated_chars"
     clear_directory(folder)
     # folder = ""
     # folder = "synthetic_data/images"

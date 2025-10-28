@@ -1,3 +1,6 @@
+# NOT IN FINAL PIPELINE
+
+
 def extract_table_cells_with_merge_detection(working_img, centroids_np, rows_pts, 
                                               output_dir="cells_out", padding=2):
     """
