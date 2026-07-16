@@ -3,6 +3,7 @@ import numpy as np
 import os
 from typing import List, Tuple, Dict, Optional
 import csv
+import argparse
 from test_lines import detect_and_draw_table_lines, group_centroids_by_columns
 
 # ---------- Параметры ----------
@@ -112,7 +113,6 @@ def preprocess(img):
     path_2 = os.path.join(DEVELOPMENT_DIR, filename_2)
     path_3 = os.path.join(DEVELOPMENT_DIR, filename_3)
     
-    img = rotate_90(img)
 
     gray = mask_pixels(img, "mask_1.png")
     gray = cv2.cvtColor(gray, cv2.COLOR_BGR2GRAY)
@@ -894,6 +894,9 @@ def process_table_image(path):
 
 
     gray, th = preprocess(img)
+    print('THE CALCULATE THRESHOLD IS: ', th)
+    
+    
 
     # пробуем найти контур таблицы и сделать warp
     quad = find_table_contour(th)
@@ -948,7 +951,11 @@ def process_table_image(path):
 
 
     # Draw each centroid as a small red circle
-    for cx, cy in centroids:
+    for i, (cx, cy) in enumerate(centroids):
+        if i == 0:   # skip background
+            continue
+        if np.isnan(cx) or np.isnan(cy):
+            continue
         cv2.circle(img_with_points, (int(cx), int(cy)), radius=3, color=(0, 0, 255), thickness=-1)  # Red dot
         
     cv2.imwrite("steps_out/intersections_visualized.png", img_with_points)
@@ -1047,6 +1054,15 @@ def process_table_image(path):
 
 # ---------- Запуск ----------
 if __name__ == "__main__":
-    process_table_image(INPUT_PATH)
+    parser = argparse.ArgumentParser(description="Run image processing pipeline step.")
+    parser.add_argument(
+        "--input",
+        required=True,
+        help="Choose which processing step to run."
+    )
+    args = parser.parse_args()
+
+    process_table_image(args.input)
 
     print("Готово. Ячейки сохранены в:", OUTPUT_DIR)
+

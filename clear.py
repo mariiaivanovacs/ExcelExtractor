@@ -51,19 +51,21 @@ if __name__ == "__main__":
     # folder = "results"
     
     # clear_directory(folder)
-    folder = "characters_old"
+    folder = "characters"
     clear_directory(folder)
-    folder = "words_production_old"
+    folder = "words_production"
     clear_directory(folder)
-    folder = "words_old"
+    folder = "words"
     clear_directory(folder)
-    folder = "cells_production"
+    folder = "cells_cleaned"
     clear_directory(folder)
-    folder = "blobs_old"
+    folder = "blobs"
     clear_directory(folder)
     folder = "cells_cleaned_old"
     clear_directory(folder)
     folder = "results"
+    clear_directory(folder)
+    folder = "steps_out"
     clear_directory(folder)
     # folder = ""
     # folder = "synthetic_data/images"

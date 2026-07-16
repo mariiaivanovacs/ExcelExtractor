@@ -1,0 +1,127 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Table Extraction OCR</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="bi bi-file-bar-graph"></i> Table Extraction OCR</h1>
+            <p class="subtitle">Extract data from table images using advanced OCR technology</p>
+        </header>
+
+        <main>
+            <!-- Upload Section -->
+            <section id="upload-section" class="card">
+                <div class="upload-area" id="upload-area">
+                    <div class="upload-icon"><i class="bi bi-file-arrow-up"></i></div>
+                    <h2>Upload Table Image</h2>
+                    <p>Drag and drop your image here or click to browse</p>
+                    <input type="file" id="file-input" accept="image/*" hidden>
+                    <button class="btn btn-primary" id="browse-btn">Browse Files</button>
+                    <p class="file-info">Supported formats: JPG, PNG, BMP, TIFF</p>
+                </div>
+            </section>
+
+            <!-- Image Preview & Rotation Section -->
+            <section id="preview-section" class="card" style="display: none;">
+                <h2 class="preview-title">
+                    <i class="bi bi-check-circle"></i> Please ensure the rotation of the table is correct
+                </h2>
+
+                <div class="preview-image-container">
+                    <img id="preview-image" src="" alt="Uploaded Image">
+                </div>
+
+                <div class="rotation-controls">
+                    <button class="btn btn-secondary rotation-btn" id="rotate-left-btn" title="Rotate 90° counterclockwise">
+                        <i class="bi bi-arrow-counterclockwise"></i> Rotate Left
+                    </button>
+                    <button class="btn btn-secondary rotation-btn" id="rotate-right-btn" title="Rotate 90° clockwise">
+                        <i class="bi bi-arrow-clockwise"></i> Rotate Right
+                    </button>
+                </div>
+
+                <div class="rotation-info">
+                    <p>Current rotation: <span id="rotation-angle">0°</span></p>
+                </div>
+
+                <button class="btn btn-primary btn-large" id="start-extraction-btn">
+                    <i class="bi bi-gear-fill"></i> Start Extraction
+                </button>
+            </section>
+
+            <!-- Processing Section -->
+            <section id="processing-section" class="card" style="display: none;">
+                <h2>Processing Your Image</h2>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span id="progress-percentage">0%</span>
+                    </div>
+                </div>
+                <div class="status-messages" id="status-messages">
+                    <p class="status-message">Initializing...</p>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="results-section" class="card" style="display: none;">
+                <h2>✅ Extraction Complete!</h2>
+                <p class="success-message">Your table has been successfully extracted</p>
+
+                <div class="results-grid">
+                    <!-- CSV Preview -->
+                    <div class="result-item">
+                        <h3>📄 Extracted Data (CSV)</h3>
+                        <div class="csv-preview" id="csv-preview">
+                            <div class="csv-loading">Loading preview...</div>
+                        </div>
+                        <button class="btn btn-secondary" id="download-csv-btn">
+                            <span>⬇️</span> Download CSV
+                        </button>
+                    </div>
+
+                    <!-- Image Preview -->
+                    <div class="result-item">
+                        <h3>🖼️ Table Visualization</h3>
+                        <div class="image-preview" id="image-preview">
+                            <img id="result-image" src="" alt="Table Visualization">
+                        </div>
+                        <button class="btn btn-secondary" id="download-image-btn">
+                            <span>⬇️</span> Download Image
+                        </button>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="new-upload-btn">
+                    Process Another Image
+                </button>
+            </section>
+
+            <!-- Error Section -->
+            <section id="error-section" class="card error-card" style="display: none;">
+                <h2><i class="bi bi-ban"></i> Error</h2>
+                <p class="error-message" id="error-message">An error occurred during processing</p>
+                <button class="btn btn-primary" id="retry-btn">Try Again</button>
+            </section>
+        </main>
+
+        <footer>
+            <p>Powered by Django and Advanced OCR Pipeline</p>
+        </footer>
+    </div>
+
+    <script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>

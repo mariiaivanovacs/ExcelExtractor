@@ -195,3 +195,7 @@ COMMAND TO RUN MAIN PIPELINE !!!!!
 file: run_pipeline.py
 
 python3 run_pipeline.py data/input/original.jpeg
+
+
+![Final table visualization](data/output/table_visualization.png)
+
